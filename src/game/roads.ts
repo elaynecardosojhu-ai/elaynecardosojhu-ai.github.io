@@ -15,16 +15,23 @@ export interface RoadSegment {
 
 export const ROAD_HALF_WIDTH = 20
 
-// Main street running across the image, roughly where the road with the
-// bus/cars sits in town-background.jpg. Every building connects to it with a
-// straight spur dropped from its door.
-export const TRUNK_Y = 330
-export const TRUNK_X1 = 20
-export const TRUNK_X2 = MAP_WIDTH - 20
+// The artwork has two distinct street levels: a lower main street (where the
+// bus/cars are, serving the bank/house/gym/supermarket) and an upper street
+// in front of the campus/courthouse/airport cluster. A short connector ties
+// them together through the roundabout so every building is reachable.
+export const LOWER_TRUNK_Y = 330
+export const LOWER_TRUNK_X1 = 20
+export const LOWER_TRUNK_X2 = MAP_WIDTH - 20
 
-export const ROUNDABOUT_CENTER: Point = { x: 216, y: TRUNK_Y }
+export const UPPER_TRUNK_Y = 252
+export const UPPER_TRUNK_X1 = 135
+export const UPPER_TRUNK_X2 = 785
+
+export const ROUNDABOUT_CENTER: Point = { x: 216, y: LOWER_TRUNK_Y }
 export const ROUNDABOUT_RADIUS = 55
 export const ROUNDABOUT_ISLAND_RADIUS = 24
+
+const UPPER_NETWORK_IDS = new Set(['university', 'courthouse', 'airport'])
 
 export function doorPoint(building: Building): Point {
   const cx = building.x + building.width / 2
@@ -32,10 +39,13 @@ export function doorPoint(building: Building): Point {
 }
 
 export const ROAD_SEGMENTS: RoadSegment[] = [
-  { id: 'trunk', x1: TRUNK_X1, y1: TRUNK_Y, x2: TRUNK_X2, y2: TRUNK_Y },
+  { id: 'trunk-lower', x1: LOWER_TRUNK_X1, y1: LOWER_TRUNK_Y, x2: LOWER_TRUNK_X2, y2: LOWER_TRUNK_Y },
+  { id: 'trunk-upper', x1: UPPER_TRUNK_X1, y1: UPPER_TRUNK_Y, x2: UPPER_TRUNK_X2, y2: UPPER_TRUNK_Y },
+  { id: 'connector', x1: ROUNDABOUT_CENTER.x, y1: LOWER_TRUNK_Y, x2: ROUNDABOUT_CENTER.x, y2: UPPER_TRUNK_Y },
   ...BUILDINGS.map((building) => {
     const door = doorPoint(building)
-    return { id: `spur-${building.id}`, x1: door.x, y1: TRUNK_Y, x2: door.x, y2: door.y }
+    const trunkY = UPPER_NETWORK_IDS.has(building.id) ? UPPER_TRUNK_Y : LOWER_TRUNK_Y
+    return { id: `spur-${building.id}`, x1: door.x, y1: trunkY, x2: door.x, y2: door.y }
   }),
 ]
 
@@ -72,28 +82,28 @@ export interface ParkedCar {
 
 export const CAR_RADIUS = 11
 
-// One parked car per building spur (skips the trunk itself), offset to one
-// side of the centerline so there's still room on the other side to drive
-// around it.
-export const PARKED_CARS: ParkedCar[] = ROAD_SEGMENTS.filter((segment) => segment.id !== 'trunk').map(
-  (segment, index) => {
-    const dx = segment.x2 - segment.x1
-    const dy = segment.y2 - segment.y1
-    const length = Math.hypot(dx, dy) || 1
-    const dirX = dx / length
-    const dirY = dy / length
-    const perpX = -dirY
-    const perpY = dirX
-    const midX = segment.x1 + dx * 0.5
-    const midY = segment.y1 + dy * 0.5
-    const offset = 10
-    const colors = ['#4a7fd1', '#d14a4a', '#d1a74a', '#7a4ad1', '#4ad17a', '#d14aa7']
-    return {
-      id: `car-${segment.id}`,
-      x: midX + perpX * offset,
-      y: midY + perpY * offset,
-      angle: (Math.atan2(dirY, dirX) * 180) / Math.PI,
-      color: colors[index % colors.length],
-    }
-  },
-)
+// One parked car per building spur (skips the trunks/connector), offset to
+// one side of the centerline so there's still room on the other side to
+// drive around it.
+export const PARKED_CARS: ParkedCar[] = ROAD_SEGMENTS.filter(
+  (segment) => segment.id !== 'trunk-lower' && segment.id !== 'trunk-upper' && segment.id !== 'connector',
+).map((segment, index) => {
+  const dx = segment.x2 - segment.x1
+  const dy = segment.y2 - segment.y1
+  const length = Math.hypot(dx, dy) || 1
+  const dirX = dx / length
+  const dirY = dy / length
+  const perpX = -dirY
+  const perpY = dirX
+  const midX = segment.x1 + dx * 0.5
+  const midY = segment.y1 + dy * 0.5
+  const offset = 10
+  const colors = ['#4a7fd1', '#d14a4a', '#d1a74a', '#7a4ad1', '#4ad17a', '#d14aa7', '#4ac9d1']
+  return {
+    id: `car-${segment.id}`,
+    x: midX + perpX * offset,
+    y: midY + perpY * offset,
+    angle: (Math.atan2(dirY, dirX) * 180) / Math.PI,
+    color: colors[index % colors.length],
+  }
+})
