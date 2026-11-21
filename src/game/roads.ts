@@ -82,28 +82,5 @@ export interface ParkedCar {
 
 export const CAR_RADIUS = 11
 
-// One parked car per building spur (skips the trunks/connector), offset to
-// one side of the centerline so there's still room on the other side to
-// drive around it.
-export const PARKED_CARS: ParkedCar[] = ROAD_SEGMENTS.filter(
-  (segment) => segment.id !== 'trunk-lower' && segment.id !== 'trunk-upper' && segment.id !== 'connector',
-).map((segment, index) => {
-  const dx = segment.x2 - segment.x1
-  const dy = segment.y2 - segment.y1
-  const length = Math.hypot(dx, dy) || 1
-  const dirX = dx / length
-  const dirY = dy / length
-  const perpX = -dirY
-  const perpY = dirX
-  const midX = segment.x1 + dx * 0.5
-  const midY = segment.y1 + dy * 0.5
-  const offset = 10
-  const colors = ['#4a7fd1', '#d14a4a', '#d1a74a', '#7a4ad1', '#4ad17a', '#d14aa7', '#4ac9d1']
-  return {
-    id: `car-${segment.id}`,
-    x: midX + perpX * offset,
-    y: midY + perpY * offset,
-    angle: (Math.atan2(dirY, dirX) * 180) / Math.PI,
-    color: colors[index % colors.length],
-  }
-})
+// No parked NPC cars on the road anymore — just the player's car.
+export const PARKED_CARS: ParkedCar[] = []
