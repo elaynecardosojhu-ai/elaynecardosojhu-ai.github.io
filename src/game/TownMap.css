@@ -1,0 +1,208 @@
+.town {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.town-hud {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--code-bg);
+}
+
+.town-hud__title {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--text-h);
+  white-space: nowrap;
+}
+
+.town-hud__stats {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.town-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.town-stat__label {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.town-stat__bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.town-stat__fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.town-hud__hint {
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0.8;
+  width: 100%;
+}
+
+.town-map {
+  width: 100%;
+  max-width: 900px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: #cfead0;
+}
+
+.town-map__grass {
+  fill: #bfe3c0;
+}
+
+.town-map__road {
+  fill: #9a9a9a;
+  stroke: #7a7a7a;
+  stroke-width: 2;
+}
+
+.town-map__road-spur {
+  stroke: #9a9a9a;
+  stroke-width: 18;
+  stroke-linecap: round;
+}
+
+.town-map__park {
+  fill: #7fc97f;
+  stroke: #4f9a4f;
+  stroke-width: 2;
+}
+
+.town-map__park-label {
+  fill: #2d5a2d;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.building__body {
+  stroke: rgba(0, 0, 0, 0.25);
+  stroke-width: 2;
+}
+
+.building__door {
+  fill: #5a3b22;
+}
+
+.building__label {
+  fill: var(--text-h);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.building__sublabel {
+  fill: var(--text);
+  font-size: 13px;
+}
+
+.building--near .building__body {
+  stroke: var(--accent);
+  stroke-width: 4;
+}
+
+.player {
+  fill: #ff5a5f;
+  stroke: #7a1f22;
+  stroke-width: 2;
+}
+
+.town-enter-prompt {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.town-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.town-modal {
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 420px;
+  width: calc(100% - 48px);
+  text-align: left;
+}
+
+.town-modal h2 {
+  margin-top: 0;
+}
+
+.town-modal__gains {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.town-modal__actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.town-modal__primary,
+.town-modal__secondary {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+
+.town-modal__primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.town-modal__secondary {
+  background: transparent;
+  color: var(--text-h);
+  border-color: var(--border);
+}
