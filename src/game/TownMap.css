@@ -15,7 +15,7 @@
   border: 2px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
-  aspect-ratio: 900 / 600;
+  aspect-ratio: 900 / 507;
 }
 
 .town-map-wrap__background {
@@ -36,19 +36,7 @@
 .town-map__road-spur {
   stroke: #ffd23f;
   stroke-linecap: round;
-  opacity: 0.22;
-}
-
-.town-map__roundabout {
-  fill: #ffd23f;
-  opacity: 0.22;
-}
-
-.town-map__roundabout-island {
-  fill: #7fc97f;
-  stroke: #4f9a4f;
-  stroke-width: 2;
-  opacity: 0.3;
+  opacity: 0.16;
 }
 
 .building__door-marker {
@@ -61,39 +49,38 @@
   opacity: 0.4;
 }
 
-.building__label {
-  fill: var(--text-h);
-  font-size: 15px;
+.building__visited-check {
+  fill: var(--accent);
+  font-size: 16px;
   font-weight: 700;
-  paint-order: stroke;
-  stroke: var(--bg);
-  stroke-width: 3px;
-}
-
-.building__sublabel {
-  fill: var(--text);
-  font-size: 12px;
+  text-anchor: middle;
   paint-order: stroke;
   stroke: var(--bg);
   stroke-width: 3px;
 }
 
 .player-shadow {
-  fill: rgba(0, 0, 0, 0.15);
+  fill: rgba(0, 0, 0, 0.2);
 }
 
-.car__body {
-  stroke: rgba(0, 0, 0, 0.35);
-  stroke-width: 1.5;
+.player-sprite {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
 }
 
-.car__window {
-  fill: #d8ecff;
-  opacity: 0.9;
-}
-
-.car--npc {
-  opacity: 0.95;
+.town-hud-date {
+  position: absolute;
+  left: 75.5%;
+  top: 3%;
+  width: 11%;
+  height: 6%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(9px, 1.4vw, 13px);
+  font-weight: 600;
+  color: #2c2c2c;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .town-enter-prompt {
