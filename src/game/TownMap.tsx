@@ -1,17 +1,35 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, type Building } from './buildings'
+import {
+  CAR_RADIUS,
+  isOnRoad,
+  PARKED_CARS,
+  ROAD_HALF_WIDTH,
+  ROAD_SEGMENTS,
+  ROUNDABOUT_CENTER,
+  ROUNDABOUT_ISLAND_RADIUS,
+  ROUNDABOUT_RADIUS,
+  type Point,
+} from './roads'
 import { useTownState } from './useTownState'
 import './TownMap.css'
 
-const PLAYER_RADIUS = 12
-const MOVE_SPEED = 240 // px per second
+const PLAYER_RADIUS = 10
+const MOVE_SPEED = 220 // px per second
 const DOOR_TRIGGER_RADIUS = 46
+const CAR_COLLISION_GAP = 3
 
-interface Point {
-  x: number
-  y: number
-}
+const TREES: Point[] = [
+  { x: 40, y: 40 },
+  { x: 860, y: 40 },
+  { x: 40, y: 560 },
+  { x: 860, y: 560 },
+  { x: 300, y: 40 },
+  { x: 600, y: 560 },
+  { x: 40, y: 300 },
+  { x: 860, y: 300 },
+]
 
 function doorPoint(building: Building): Point {
   return { x: building.x + building.width / 2, y: building.y + building.height + 14 }
@@ -21,18 +39,33 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
-function intersectsBuilding(point: Point, building: Building) {
+function hitsParkedCar(point: Point) {
+  return PARKED_CARS.some(
+    (car) => Math.hypot(point.x - car.x, point.y - car.y) < PLAYER_RADIUS + CAR_RADIUS + CAR_COLLISION_GAP,
+  )
+}
+
+interface CarShapeProps {
+  x: number
+  y: number
+  angle: number
+  color: string
+  className?: string
+}
+
+function CarShape({ x, y, angle, color, className }: CarShapeProps) {
   return (
-    point.x + PLAYER_RADIUS > building.x &&
-    point.x - PLAYER_RADIUS < building.x + building.width &&
-    point.y + PLAYER_RADIUS > building.y &&
-    point.y - PLAYER_RADIUS < building.y + building.height
+    <g transform={`translate(${x} ${y}) rotate(${angle})`} className={className}>
+      <rect x={-13} y={-7} width={26} height={14} rx={4} className="car__body" style={{ fill: color }} />
+      <rect x={-5} y={-5} width={11} height={10} rx={2} className="car__window" />
+    </g>
   )
 }
 
 export default function TownMap() {
   const { stats, visited, visit } = useTownState()
-  const [player, setPlayer] = useState<Point>({ x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 })
+  const [player, setPlayer] = useState<Point>({ ...ROUNDABOUT_CENTER })
+  const [facingAngle, setFacingAngle] = useState(0)
   const [nearBuilding, setNearBuilding] = useState<Building | null>(null)
   const [modalBuilding, setModalBuilding] = useState<Building | null>(null)
   const [justVisited, setJustVisited] = useState(false)
@@ -89,16 +122,17 @@ export default function TownMap() {
           const current = playerRef.current
           let nextX = clamp(current.x + stepX, PLAYER_RADIUS, MAP_WIDTH - PLAYER_RADIUS)
           let nextY = current.y
-          if (BUILDINGS.some((b) => intersectsBuilding({ x: nextX, y: nextY }, b))) {
+          if (!isOnRoad({ x: nextX, y: nextY }) || hitsParkedCar({ x: nextX, y: nextY })) {
             nextX = current.x
           }
           nextY = clamp(current.y + stepY, PLAYER_RADIUS, MAP_HEIGHT - PLAYER_RADIUS)
-          if (BUILDINGS.some((b) => intersectsBuilding({ x: nextX, y: nextY }, b))) {
+          if (!isOnRoad({ x: nextX, y: nextY }) || hitsParkedCar({ x: nextX, y: nextY })) {
             nextY = current.y
           }
 
           if (nextX !== current.x || nextY !== current.y) {
             setPlayer({ x: nextX, y: nextY })
+            setFacingAngle((Math.atan2(nextY - current.y, nextX - current.x) * 180) / Math.PI)
           }
         }
       }
@@ -153,7 +187,8 @@ export default function TownMap() {
           ))}
         </div>
         <div className="town-hud__hint">
-          Walk with arrow keys / WASD. Press Enter near a building to go inside.
+          Drive along the roads with arrow keys / WASD — the other cars won't move, so steer around
+          them. Press Enter near a building to go inside.
         </div>
       </div>
 
@@ -161,32 +196,39 @@ export default function TownMap() {
         className="town-map"
         viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
         role="img"
-        aria-label="A small town map with four buildings connected by roads"
+        aria-label="A small town map with a central roundabout and roads leading to four buildings"
       >
         <rect x={0} y={0} width={MAP_WIDTH} height={MAP_HEIGHT} className="town-map__grass" />
 
-        {/* roads: a ring around the central park with spurs to each building */}
-        <rect x={220} y={220} width={460} height={160} rx={10} className="town-map__road" />
-        {BUILDINGS.map((b) => {
-          const door = doorPoint(b)
-          const ringX = clamp(door.x, 240, 660)
-          const ringY = clamp(door.y, 240, 360)
-          return (
-            <line
-              key={`road-${b.id}`}
-              x1={door.x}
-              y1={door.y}
-              x2={ringX}
-              y2={ringY}
-              className="town-map__road-spur"
-            />
-          )
-        })}
+        {TREES.map((tree, index) => (
+          <circle key={`tree-${index}`} cx={tree.x} cy={tree.y} r={18} className="town-map__tree" />
+        ))}
 
-        <rect x={320} y={260} width={260} height={80} rx={8} className="town-map__park" />
-        <text x={450} y={305} textAnchor="middle" className="town-map__park-label">
-          Town Square
-        </text>
+        {/* roads: straight arms from each building's door to the central roundabout */}
+        {ROAD_SEGMENTS.map((segment) => (
+          <line
+            key={segment.id}
+            x1={segment.x1}
+            y1={segment.y1}
+            x2={segment.x2}
+            y2={segment.y2}
+            className="town-map__road-spur"
+            strokeWidth={ROAD_HALF_WIDTH * 2}
+          />
+        ))}
+
+        <circle
+          cx={ROUNDABOUT_CENTER.x}
+          cy={ROUNDABOUT_CENTER.y}
+          r={ROUNDABOUT_RADIUS}
+          className="town-map__roundabout"
+        />
+        <circle
+          cx={ROUNDABOUT_CENTER.x}
+          cy={ROUNDABOUT_CENTER.y}
+          r={ROUNDABOUT_ISLAND_RADIUS}
+          className="town-map__roundabout-island"
+        />
 
         {BUILDINGS.map((building) => (
           <g key={building.id} className={nearBuilding?.id === building.id ? 'building building--near' : 'building'}>
@@ -229,7 +271,11 @@ export default function TownMap() {
           </g>
         ))}
 
-        <circle cx={player.x} cy={player.y} r={PLAYER_RADIUS} className="player" />
+        <circle cx={player.x} cy={player.y} r={PLAYER_RADIUS} className="player-shadow" />
+        {PARKED_CARS.map((car) => (
+          <CarShape key={car.id} x={car.x} y={car.y} angle={car.angle} color={car.color} className="car--npc" />
+        ))}
+        <CarShape x={player.x} y={player.y} angle={facingAngle} color="#e54b4b" className="car--player" />
       </svg>
 
       {nearBuilding && !modalBuilding && (

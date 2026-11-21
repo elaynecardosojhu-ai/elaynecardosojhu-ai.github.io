@@ -79,28 +79,26 @@
   fill: #bfe3c0;
 }
 
-.town-map__road {
-  fill: #9a9a9a;
-  stroke: #7a7a7a;
+.town-map__tree {
+  fill: #4f9a4f;
+  stroke: #3a7a3a;
   stroke-width: 2;
+  opacity: 0.85;
 }
 
 .town-map__road-spur {
   stroke: #9a9a9a;
-  stroke-width: 18;
   stroke-linecap: round;
 }
 
-.town-map__park {
+.town-map__roundabout {
+  fill: #9a9a9a;
+}
+
+.town-map__roundabout-island {
   fill: #7fc97f;
   stroke: #4f9a4f;
   stroke-width: 2;
-}
-
-.town-map__park-label {
-  fill: #2d5a2d;
-  font-size: 16px;
-  font-weight: 600;
 }
 
 .building__body {
@@ -128,10 +126,22 @@
   stroke-width: 4;
 }
 
-.player {
-  fill: #ff5a5f;
-  stroke: #7a1f22;
-  stroke-width: 2;
+.player-shadow {
+  fill: rgba(0, 0, 0, 0.15);
+}
+
+.car__body {
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 1.5;
+}
+
+.car__window {
+  fill: #d8ecff;
+  opacity: 0.9;
+}
+
+.car--npc {
+  opacity: 0.95;
 }
 
 .town-enter-prompt {
