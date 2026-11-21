@@ -67,53 +67,78 @@
   width: 100%;
 }
 
-.town-map {
+.town-map-wrap {
+  position: relative;
   width: 100%;
   max-width: 900px;
   border: 2px solid var(--border);
   border-radius: 10px;
-  background: #cfead0;
+  overflow: hidden;
+  aspect-ratio: 900 / 600;
+}
+
+.town-map-wrap__background {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.town-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .town-map__grass {
-  fill: #bfe3c0;
+  fill: transparent;
 }
 
 .town-map__tree {
   fill: #4f9a4f;
   stroke: #3a7a3a;
   stroke-width: 2;
-  opacity: 0.85;
+  opacity: 0;
 }
 
 .town-map__road-spur {
   stroke: #9a9a9a;
   stroke-linecap: round;
+  opacity: 0.4;
 }
 
 .town-map__roundabout {
   fill: #9a9a9a;
+  opacity: 0.4;
 }
 
 .town-map__roundabout-island {
   fill: #7fc97f;
   stroke: #4f9a4f;
   stroke-width: 2;
+  opacity: 0.4;
 }
 
 .building__body {
   stroke: rgba(0, 0, 0, 0.25);
   stroke-width: 2;
+  opacity: 0.35;
 }
 
 .building__door {
   fill: #5a3b22;
+  opacity: 0.35;
 }
 
 .building__label {
   fill: var(--text-h);
   font-size: 15px;
   font-weight: 700;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
 }
 
 .building__sublabel {

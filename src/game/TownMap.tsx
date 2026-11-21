@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import townBackground from '../assets/town-background.jpg'
 import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, type Building } from './buildings'
 import {
   CAR_RADIUS,
@@ -192,13 +193,15 @@ export default function TownMap() {
         </div>
       </div>
 
-      <svg
-        className="town-map"
-        viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-        role="img"
-        aria-label="A small town map with a central roundabout and roads leading to four buildings"
-      >
-        <rect x={0} y={0} width={MAP_WIDTH} height={MAP_HEIGHT} className="town-map__grass" />
+      <div className="town-map-wrap">
+        <img src={townBackground} alt="" className="town-map-wrap__background" />
+        <svg
+          className="town-map"
+          viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
+          role="img"
+          aria-label="A small town map with a central roundabout and roads leading to four buildings"
+        >
+          <rect x={0} y={0} width={MAP_WIDTH} height={MAP_HEIGHT} className="town-map__grass" />
 
         {TREES.map((tree, index) => (
           <circle key={`tree-${index}`} cx={tree.x} cy={tree.y} r={18} className="town-map__tree" />
@@ -276,7 +279,8 @@ export default function TownMap() {
           <CarShape key={car.id} x={car.x} y={car.y} angle={car.angle} color={car.color} className="car--npc" />
         ))}
         <CarShape x={player.x} y={player.y} angle={facingAngle} color="#e54b4b" className="car--player" />
-      </svg>
+        </svg>
+      </div>
 
       {nearBuilding && !modalBuilding && (
         <button className="town-enter-prompt" onClick={() => enterBuilding(nearBuilding)}>
