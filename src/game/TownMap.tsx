@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import townBackground from '../assets/town-background.jpg'
 import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, type Building } from './buildings'
 import {
   CAR_RADIUS,
+  doorPoint,
   isOnRoad,
   PARKED_CARS,
   ROAD_HALF_WIDTH,
@@ -20,21 +21,6 @@ const PLAYER_RADIUS = 10
 const MOVE_SPEED = 220 // px per second
 const DOOR_TRIGGER_RADIUS = 46
 const CAR_COLLISION_GAP = 3
-
-const TREES: Point[] = [
-  { x: 40, y: 40 },
-  { x: 860, y: 40 },
-  { x: 40, y: 560 },
-  { x: 860, y: 560 },
-  { x: 300, y: 40 },
-  { x: 600, y: 560 },
-  { x: 40, y: 300 },
-  { x: 860, y: 300 },
-]
-
-function doorPoint(building: Building): Point {
-  return { x: building.x + building.width / 2, y: building.y + building.height + 14 }
-}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
@@ -64,7 +50,7 @@ function CarShape({ x, y, angle, color, className }: CarShapeProps) {
 }
 
 export default function TownMap() {
-  const { stats, visited, visit } = useTownState()
+  const { visited, visit } = useTownState()
   const [player, setPlayer] = useState<Point>({ ...ROUNDABOUT_CENTER })
   const [facingAngle, setFacingAngle] = useState(0)
   const [nearBuilding, setNearBuilding] = useState<Building | null>(null)
@@ -159,126 +145,72 @@ export default function TownMap() {
   }, [player])
 
   function enterBuilding(building: Building) {
-    const gained = visit(building.id, building.statDelta)
+    const gained = visit(building.id)
     setJustVisited(gained)
     setModalBuilding(building)
   }
 
-  const statBars = useMemo(
-    () => [
-      { key: 'money', label: '💰 Money', value: stats.money },
-      { key: 'knowledge', label: '🧠 Knowledge', value: stats.knowledge },
-      { key: 'happiness', label: '😊 Happiness', value: stats.happiness },
-    ],
-    [stats],
-  )
-
   return (
     <div className="town">
-      <div className="town-hud">
-        <div className="town-hud__title">Elayne's Town</div>
-        <div className="town-hud__stats">
-          {statBars.map((stat) => (
-            <div className="town-stat" key={stat.key}>
-              <span className="town-stat__label">{stat.label}</span>
-              <div className="town-stat__bar">
-                <div className="town-stat__fill" style={{ width: `${stat.value}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="town-hud__hint">
-          Drive along the roads with arrow keys / WASD — the other cars won't move, so steer around
-          them. Press Enter near a building to go inside.
-        </div>
-      </div>
-
       <div className="town-map-wrap">
         <img src={townBackground} alt="" className="town-map-wrap__background" />
         <svg
           className="town-map"
           viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
           role="img"
-          aria-label="A small town map with a central roundabout and roads leading to four buildings"
+          aria-label="A town map overlaid on illustrated artwork, with roads leading to a university, bank, airport, house, gym and supermarket"
         >
-          <rect x={0} y={0} width={MAP_WIDTH} height={MAP_HEIGHT} className="town-map__grass" />
+          {/* roads: a main street plus a straight spur dropped from each building's door */}
+          {ROAD_SEGMENTS.map((segment) => (
+            <line
+              key={segment.id}
+              x1={segment.x1}
+              y1={segment.y1}
+              x2={segment.x2}
+              y2={segment.y2}
+              className="town-map__road-spur"
+              strokeWidth={ROAD_HALF_WIDTH * 2}
+            />
+          ))}
 
-        {TREES.map((tree, index) => (
-          <circle key={`tree-${index}`} cx={tree.x} cy={tree.y} r={18} className="town-map__tree" />
-        ))}
-
-        {/* roads: straight arms from each building's door to the central roundabout */}
-        {ROAD_SEGMENTS.map((segment) => (
-          <line
-            key={segment.id}
-            x1={segment.x1}
-            y1={segment.y1}
-            x2={segment.x2}
-            y2={segment.y2}
-            className="town-map__road-spur"
-            strokeWidth={ROAD_HALF_WIDTH * 2}
+          <circle
+            cx={ROUNDABOUT_CENTER.x}
+            cy={ROUNDABOUT_CENTER.y}
+            r={ROUNDABOUT_RADIUS}
+            className="town-map__roundabout"
           />
-        ))}
+          <circle
+            cx={ROUNDABOUT_CENTER.x}
+            cy={ROUNDABOUT_CENTER.y}
+            r={ROUNDABOUT_ISLAND_RADIUS}
+            className="town-map__roundabout-island"
+          />
 
-        <circle
-          cx={ROUNDABOUT_CENTER.x}
-          cy={ROUNDABOUT_CENTER.y}
-          r={ROUNDABOUT_RADIUS}
-          className="town-map__roundabout"
-        />
-        <circle
-          cx={ROUNDABOUT_CENTER.x}
-          cy={ROUNDABOUT_CENTER.y}
-          r={ROUNDABOUT_ISLAND_RADIUS}
-          className="town-map__roundabout-island"
-        />
+          {BUILDINGS.map((building) => {
+            const door = doorPoint(building)
+            const labelY = building.doorSide === 'top' ? building.y + building.height + 22 : building.y - 14
+            return (
+              <g
+                key={building.id}
+                className={nearBuilding?.id === building.id ? 'building building--near' : 'building'}
+              >
+                <circle cx={door.x} cy={door.y} r={10} className="building__door-marker" />
+                <text x={door.x} y={labelY} textAnchor="middle" className="building__label">
+                  {building.label}
+                </text>
+                <text x={door.x} y={labelY + 16} textAnchor="middle" className="building__sublabel">
+                  {visited.has(building.id) ? '✓ ' : ''}
+                  {building.sublabel}
+                </text>
+              </g>
+            )
+          })}
 
-        {BUILDINGS.map((building) => (
-          <g key={building.id} className={nearBuilding?.id === building.id ? 'building building--near' : 'building'}>
-            <rect
-              x={building.x}
-              y={building.y}
-              width={building.width}
-              height={building.height}
-              className="building__body"
-              style={{ fill: building.color }}
-            />
-            <polygon
-              points={`${building.x - 8},${building.y} ${building.x + building.width + 8},${building.y} ${building.x + building.width / 2},${building.y - 40}`}
-              style={{ fill: building.roofColor }}
-            />
-            <rect
-              x={building.x + building.width / 2 - 14}
-              y={building.y + building.height - 36}
-              width={28}
-              height={36}
-              className="building__door"
-            />
-            <text
-              x={building.x + building.width / 2}
-              y={building.y - 50}
-              textAnchor="middle"
-              className="building__label"
-            >
-              {building.label}
-            </text>
-            <text
-              x={building.x + building.width / 2}
-              y={building.y + building.height + 30}
-              textAnchor="middle"
-              className="building__sublabel"
-            >
-              {visited.has(building.id) ? '✓ ' : ''}
-              {building.sublabel}
-            </text>
-          </g>
-        ))}
-
-        <circle cx={player.x} cy={player.y} r={PLAYER_RADIUS} className="player-shadow" />
-        {PARKED_CARS.map((car) => (
-          <CarShape key={car.id} x={car.x} y={car.y} angle={car.angle} color={car.color} className="car--npc" />
-        ))}
-        <CarShape x={player.x} y={player.y} angle={facingAngle} color="#e54b4b" className="car--player" />
+          <circle cx={player.x} cy={player.y} r={PLAYER_RADIUS} className="player-shadow" />
+          {PARKED_CARS.map((car) => (
+            <CarShape key={car.id} x={car.x} y={car.y} angle={car.angle} color={car.color} className="car--npc" />
+          ))}
+          <CarShape x={player.x} y={player.y} angle={facingAngle} color="#e54b4b" className="car--player" />
         </svg>
       </div>
 
@@ -293,20 +225,15 @@ export default function TownMap() {
           <div className="town-modal" onClick={(e) => e.stopPropagation()}>
             <h2>{modalBuilding.label}</h2>
             <p>{justVisited ? modalBuilding.flavor : modalBuilding.returnFlavor}</p>
-            {justVisited && (
-              <p className="town-modal__gains">
-                {Object.entries(modalBuilding.statDelta)
-                  .map(([key, value]) => `+${value} ${key}`)
-                  .join('  ·  ')}
-              </p>
-            )}
             <div className="town-modal__actions">
               <button className="town-modal__secondary" onClick={() => setModalBuilding(null)}>
                 Stay in town
               </button>
-              <Link className="town-modal__primary" to={modalBuilding.route}>
-                Go inside →
-              </Link>
+              {modalBuilding.route && (
+                <Link className="town-modal__primary" to={modalBuilding.route}>
+                  Go inside →
+                </Link>
+              )}
             </div>
           </div>
         </div>

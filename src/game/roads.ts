@@ -1,4 +1,4 @@
-import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH } from './buildings'
+import { BUILDINGS, MAP_WIDTH, type Building } from './buildings'
 
 export interface Point {
   x: number
@@ -14,31 +14,30 @@ export interface RoadSegment {
 }
 
 export const ROAD_HALF_WIDTH = 20
-export const ROUNDABOUT_CENTER: Point = { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 }
-export const ROUNDABOUT_RADIUS = 70
-export const ROUNDABOUT_ISLAND_RADIUS = 30
 
-function doorPoint(building: (typeof BUILDINGS)[number]): Point {
-  return { x: building.x + building.width / 2, y: building.y + building.height + 14 }
+// Main street running across the image, roughly where the road with the
+// bus/cars sits in town-background.jpg. Every building connects to it with a
+// straight spur dropped from its door.
+export const TRUNK_Y = 330
+export const TRUNK_X1 = 20
+export const TRUNK_X2 = MAP_WIDTH - 20
+
+export const ROUNDABOUT_CENTER: Point = { x: 216, y: TRUNK_Y }
+export const ROUNDABOUT_RADIUS = 55
+export const ROUNDABOUT_ISLAND_RADIUS = 24
+
+export function doorPoint(building: Building): Point {
+  const cx = building.x + building.width / 2
+  return building.doorSide === 'top' ? { x: cx, y: building.y - 10 } : { x: cx, y: building.y + building.height + 10 }
 }
 
-function pointOnRoundaboutEdge(door: Point): Point {
-  const dx = door.x - ROUNDABOUT_CENTER.x
-  const dy = door.y - ROUNDABOUT_CENTER.y
-  const dist = Math.hypot(dx, dy) || 1
-  return {
-    x: ROUNDABOUT_CENTER.x + (dx / dist) * ROUNDABOUT_RADIUS,
-    y: ROUNDABOUT_CENTER.y + (dy / dist) * ROUNDABOUT_RADIUS,
-  }
-}
-
-// Each building gets a straight road arm running from its door to the edge of
-// the central roundabout, so every building is reachable only by road.
-export const ROAD_SEGMENTS: RoadSegment[] = BUILDINGS.map((building) => {
-  const door = doorPoint(building)
-  const edge = pointOnRoundaboutEdge(door)
-  return { id: `road-${building.id}`, x1: door.x, y1: door.y, x2: edge.x, y2: edge.y }
-})
+export const ROAD_SEGMENTS: RoadSegment[] = [
+  { id: 'trunk', x1: TRUNK_X1, y1: TRUNK_Y, x2: TRUNK_X2, y2: TRUNK_Y },
+  ...BUILDINGS.map((building) => {
+    const door = doorPoint(building)
+    return { id: `spur-${building.id}`, x1: door.x, y1: TRUNK_Y, x2: door.x, y2: door.y }
+  }),
+]
 
 function distanceToSegment(point: Point, a: Point, b: Point): number {
   const dx = b.x - a.x
@@ -53,8 +52,8 @@ function distanceToSegment(point: Point, a: Point, b: Point): number {
 }
 
 export function isOnRoad(point: Point): boolean {
-  const distToCenter = Math.hypot(point.x - ROUNDABOUT_CENTER.x, point.y - ROUNDABOUT_CENTER.y)
-  if (distToCenter <= ROUNDABOUT_RADIUS) return true
+  const distToRoundabout = Math.hypot(point.x - ROUNDABOUT_CENTER.x, point.y - ROUNDABOUT_CENTER.y)
+  if (distToRoundabout <= ROUNDABOUT_RADIUS) return true
 
   return ROAD_SEGMENTS.some(
     (segment) =>
@@ -71,28 +70,30 @@ export interface ParkedCar {
   color: string
 }
 
-export const CAR_RADIUS = 13
+export const CAR_RADIUS = 11
 
-// One parked car per road arm, offset to one side of the centerline so there's
-// still room on the other side to drive around it.
-export const PARKED_CARS: ParkedCar[] = ROAD_SEGMENTS.map((segment, index) => {
-  const dx = segment.x2 - segment.x1
-  const dy = segment.y2 - segment.y1
-  const length = Math.hypot(dx, dy) || 1
-  const dirX = dx / length
-  const dirY = dy / length
-  const perpX = -dirY
-  const perpY = dirX
-  const t = 0.55
-  const midX = segment.x1 + dx * t
-  const midY = segment.y1 + dy * t
-  const offset = 11
-  const colors = ['#4a7fd1', '#d14a4a', '#d1a74a', '#7a4ad1']
-  return {
-    id: `car-${segment.id}`,
-    x: midX + perpX * offset,
-    y: midY + perpY * offset,
-    angle: (Math.atan2(dirY, dirX) * 180) / Math.PI,
-    color: colors[index % colors.length],
-  }
-})
+// One parked car per building spur (skips the trunk itself), offset to one
+// side of the centerline so there's still room on the other side to drive
+// around it.
+export const PARKED_CARS: ParkedCar[] = ROAD_SEGMENTS.filter((segment) => segment.id !== 'trunk').map(
+  (segment, index) => {
+    const dx = segment.x2 - segment.x1
+    const dy = segment.y2 - segment.y1
+    const length = Math.hypot(dx, dy) || 1
+    const dirX = dx / length
+    const dirY = dy / length
+    const perpX = -dirY
+    const perpY = dirX
+    const midX = segment.x1 + dx * 0.5
+    const midY = segment.y1 + dy * 0.5
+    const offset = 10
+    const colors = ['#4a7fd1', '#d14a4a', '#d1a74a', '#7a4ad1', '#4ad17a', '#d14aa7']
+    return {
+      id: `car-${segment.id}`,
+      x: midX + perpX * offset,
+      y: midY + perpY * offset,
+      angle: (Math.atan2(dirY, dirX) * 180) / Math.PI,
+      color: colors[index % colors.length],
+    }
+  },
+)
