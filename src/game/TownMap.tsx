@@ -81,6 +81,10 @@ const JOB_DOORS: Record<string, Point> = Object.fromEntries(
 // there's a moment to get oriented first.
 const HIM_APPEAR_DELAY_MS = 3000
 
+// How long after the first graduation before the passport shows up at the
+// airport, so the graduation celebration has a moment to land first.
+const PASSPORT_APPEAR_DELAY_MS = 4000
+
 // How long the player rides the scooter after collecting money from the
 // bank before reverting back to walking on foot.
 const MOTO_RIDE_DURATION_MS = 8000
@@ -244,7 +248,8 @@ export default function TownMap() {
   const [companions, setCompanions] = useState<CompanionState[]>(INITIAL_COMPANIONS)
   const [hatCollected, setHatCollected] = useState(false)
   const [collectedJobs, setCollectedJobs] = useState<Set<string>>(new Set())
-  const [moneyCollected, setMoneyCollected] = useState(false)
+  const [moneyCollectCount, setMoneyCollectCount] = useState(0)
+  const [passportAvailable, setPassportAvailable] = useState(false)
   const [passportCollected, setPassportCollected] = useState(false)
   const [diplomaCollected, setDiplomaCollected] = useState(false)
   const [motoActive, setMotoActive] = useState(false)
@@ -274,10 +279,13 @@ export default function TownMap() {
   const himDestinationRef = useRef<'church' | 'tjsp'>('church')
   const hatCollectedRef = useRef(false)
   const collectedJobsRef = useRef<Set<string>>(new Set())
-  const moneyCollectedRef = useRef(false)
+  const moneyCollectCountRef = useRef(0)
+  const passportAvailableRef = useRef(false)
+  const passportAppearScheduledRef = useRef(false)
   const passportCollectedRef = useRef(false)
   const diplomaCollectedRef = useRef(false)
   const motoRevertTimeoutRef = useRef<number | null>(null)
+  const passportAppearTimeoutRef = useRef<number | null>(null)
   const himPhaseRef = useRef<'before-church' | 'after-church' | 'reunited' | 'done'>('before-church')
   const companionsRef = useRef<CompanionState[]>(companions)
   const companionsSpawnedRef = useRef(false)
@@ -558,9 +566,11 @@ export default function TownMap() {
         }
 
         // Catch detection: if the player reaches him, start the escort to church.
+        // Only while the player is actually in control (not already mid-escort),
+        // so one event can't accidentally trigger another.
         const current = playerRef.current
         const caughtDist = Math.hypot(current.x - nextHimState.x, current.y - nextHimState.y)
-        if (!modalBuilding && caughtDist < CATCH_RADIUS) {
+        if (!modalBuilding && !isEscortingRef.current && caughtDist < CATCH_RADIUS) {
           const destination = himPhaseRef.current === 'reunited' ? 'tjsp' : 'church'
           himDestinationRef.current = destination
           escortPathRef.current = destination === 'tjsp' ? buildPathToTjsp(current) : buildPathToChurch(current)
@@ -593,7 +603,8 @@ export default function TownMap() {
       }
 
       // Graduation hat pickup, in front of Unicamp: collecting it triggers
-      // the graduation celebration and unlocks the job icons below.
+      // the graduation celebration, unlocks the job icons below, and (after
+      // a short delay) reveals the passport at the airport.
       if (!modalBuilding && !isEscortingRef.current && !hatCollectedRef.current) {
         const current = playerRef.current
         const dist = Math.hypot(current.x - UNICAMP_DOOR.x, current.y - UNICAMP_DOOR.y)
@@ -601,6 +612,13 @@ export default function TownMap() {
           hatCollectedRef.current = true
           setHatCollected(true)
           triggerCelebration(GRADUATION_EMOJIS, UNICAMP_DOOR)
+          if (!passportAppearScheduledRef.current) {
+            passportAppearScheduledRef.current = true
+            passportAppearTimeoutRef.current = window.setTimeout(() => {
+              passportAvailableRef.current = true
+              setPassportAvailable(true)
+            }, PASSPORT_APPEAR_DELAY_MS)
+          }
         }
       }
 
@@ -623,22 +641,27 @@ export default function TownMap() {
         }
       }
 
-      // Money pickup in front of the bank: appears once the first job has
-      // been taken, and triggers its own celebration when collected.
-      if (!modalBuilding && !isEscortingRef.current && collectedJobsRef.current.size > 0 && !moneyCollectedRef.current) {
+      // Money pickup in front of the bank: appears after each job taken (even
+      // replenishing after being collected, as long as another job has since
+      // been taken), and triggers its own celebration when collected.
+      if (
+        !modalBuilding &&
+        !isEscortingRef.current &&
+        collectedJobsRef.current.size > moneyCollectCountRef.current
+      ) {
         const current = playerRef.current
         const dist = Math.hypot(current.x - BANK_DOOR.x, current.y - BANK_DOOR.y)
         if (dist < CATCH_RADIUS) {
-          moneyCollectedRef.current = true
-          setMoneyCollected(true)
+          moneyCollectCountRef.current += 1
+          setMoneyCollectCount(moneyCollectCountRef.current)
           triggerCelebration(MONEY_EMOJIS, BANK_DOOR)
           startMotoRide()
         }
       }
 
-      // Passport pickup in front of the airport, available once the first
-      // graduation has happened: collecting it triggers a travel celebration.
-      if (!modalBuilding && !isEscortingRef.current && hatCollectedRef.current && !passportCollectedRef.current) {
+      // Passport pickup in front of the airport, available a few seconds
+      // after the first graduation: collecting it triggers a travel celebration.
+      if (!modalBuilding && !isEscortingRef.current && passportAvailableRef.current && !passportCollectedRef.current) {
         const current = playerRef.current
         const dist = Math.hypot(current.x - AIRPORT_DOOR.x, current.y - AIRPORT_DOOR.y)
         if (dist < CATCH_RADIUS) {
@@ -676,6 +699,7 @@ export default function TownMap() {
     return () => {
       if (celebrationTimeoutRef.current !== null) window.clearTimeout(celebrationTimeoutRef.current)
       if (motoRevertTimeoutRef.current !== null) window.clearTimeout(motoRevertTimeoutRef.current)
+      if (passportAppearTimeoutRef.current !== null) window.clearTimeout(passportAppearTimeoutRef.current)
     }
   }, [])
 
@@ -814,13 +838,13 @@ export default function TownMap() {
               )
             })}
 
-          {collectedJobs.size > 0 && !moneyCollected && (
+          {collectedJobs.size > moneyCollectCount && (
             <text x={BANK_DOOR.x} y={BANK_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
               💰
             </text>
           )}
 
-          {hatCollected && !passportCollected && (
+          {passportAvailable && !passportCollected && (
             <image
               href={passportSprite}
               x={AIRPORT_DOOR.x - PICKUP_WIDTH / 2}
