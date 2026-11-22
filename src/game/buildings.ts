@@ -25,15 +25,24 @@ export const MAP_HEIGHT = 507
 // drifts off its building. Every building's door faces straight down onto
 // the road below its row.
 export const BUILDINGS: Building[] = [
-  // Row 1 — top street: TJSP (church artwork, no stop point), Elite School, Kenlo Software
+  // Row 1 — top street: Campinas sign, Church, TJSP, Elite School, Kenlo Software
+  {
+    id: 'church',
+    label: 'Church',
+    x: 90,
+    y: 60,
+    width: 110,
+    height: 90,
+    flavor: 'A quiet moment to catch your breath before the next chapter.',
+    returnFlavor: 'Still peaceful in here.',
+  },
   {
     id: 'tjsp',
     label: 'TJSP',
-    x: 170,
+    x: 220,
     y: 60,
-    width: 130,
+    width: 100,
     height: 90,
-    noStop: true,
     flavor: 'Yes, I worked here! True story.',
     returnFlavor: 'Still standing tall — good memories in this building.',
   },

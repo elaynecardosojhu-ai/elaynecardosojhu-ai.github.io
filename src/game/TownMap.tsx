@@ -47,7 +47,7 @@ interface HimMoveState {
 
 const HIM_ROWS = [ROAD1_Y, ROAD2_Y, ROAD3_Y]
 
-const CHURCH_BUILDING = BUILDINGS.find((building) => building.id === 'tjsp')!
+const CHURCH_BUILDING = BUILDINGS.find((building) => building.id === 'church')!
 const CHURCH_DOOR = doorPoint(CHURCH_BUILDING)
 
 function isOnHorizontalRoad(y: number): boolean {
