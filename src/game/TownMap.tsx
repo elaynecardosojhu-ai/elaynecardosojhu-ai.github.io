@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import meCharacter from '../assets/me-character.png'
+import meFront from '../assets/characters/me-front.png'
+import meBack from '../assets/characters/me-back.png'
+import meWalk from '../assets/characters/me-walk.png'
+import meWalk2 from '../assets/characters/me-walk-2.png'
 import townBackground from '../assets/town-profile.jpg'
 import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, type Building } from './buildings'
 import {
@@ -20,6 +23,7 @@ const PLAYER_WIDTH = 28
 const PLAYER_HEIGHT = 40
 const MOVE_SPEED = 170 // px per second
 const DOOR_TRIGGER_RADIUS = 46
+const WALK_FRAME_DURATION = 0.16 // seconds between leg-swap frames
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
@@ -33,6 +37,8 @@ export default function TownMap() {
   const { visited, visit } = useTownState()
   const [player, setPlayer] = useState<Point>({ x: VERTICAL_ROAD_X, y: ROAD2_Y })
   const [facingLeft, setFacingLeft] = useState(false)
+  const [isMoving, setIsMoving] = useState(false)
+  const [walkFrame, setWalkFrame] = useState(0)
   const [nearBuilding, setNearBuilding] = useState<Building | null>(null)
   const [modalBuilding, setModalBuilding] = useState<Building | null>(null)
   const [justVisited, setJustVisited] = useState(false)
@@ -42,6 +48,7 @@ export default function TownMap() {
   const frameRef = useRef<number>(0)
   const lastTimeRef = useRef<number | null>(null)
   const playerRef = useRef(player)
+  const walkTimerRef = useRef(0)
   playerRef.current = player
 
   useEffect(() => {
@@ -98,11 +105,30 @@ export default function TownMap() {
             nextY = current.y
           }
 
-          if (nextX !== current.x || nextY !== current.y) {
+          const moved = nextX !== current.x || nextY !== current.y
+          if (moved) {
             setPlayer({ x: nextX, y: nextY })
             if (nextX !== current.x) setFacingLeft(nextX < current.x)
           }
+
+          if (moved) {
+            walkTimerRef.current += dt
+            if (walkTimerRef.current >= WALK_FRAME_DURATION) {
+              walkTimerRef.current = 0
+              setWalkFrame((f) => (f === 0 ? 1 : 0))
+            }
+            setIsMoving(true)
+          } else {
+            walkTimerRef.current = 0
+            setIsMoving(false)
+          }
+        } else {
+          walkTimerRef.current = 0
+          setIsMoving(false)
         }
+      } else {
+        walkTimerRef.current = 0
+        setIsMoving(false)
       }
 
       frameRef.current = requestAnimationFrame(step)
@@ -130,6 +156,9 @@ export default function TownMap() {
     setJustVisited(gained)
     setModalBuilding(building)
   }
+
+  const spriteSrc = isMoving ? (walkFrame === 0 ? meWalk : meWalk2) : nearBuilding ? meBack : meFront
+  const shouldMirror = isMoving && facingLeft
 
   return (
     <div className="town">
@@ -174,12 +203,12 @@ export default function TownMap() {
 
           <ellipse cx={player.x} cy={player.y + PLAYER_HEIGHT / 2 - 4} rx={12} ry={5} className="player-shadow" />
           <image
-            href={meCharacter}
+            href={spriteSrc}
             x={player.x - PLAYER_WIDTH / 2}
             y={player.y - PLAYER_HEIGHT / 2}
             width={PLAYER_WIDTH}
             height={PLAYER_HEIGHT}
-            transform={facingLeft ? `scale(-1 1) translate(${-2 * player.x} 0)` : undefined}
+            transform={shouldMirror ? `scale(-1 1) translate(${-2 * player.x} 0)` : undefined}
             className="player-sprite"
           />
         </svg>
