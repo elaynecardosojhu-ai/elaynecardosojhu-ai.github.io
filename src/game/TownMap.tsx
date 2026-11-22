@@ -16,6 +16,7 @@ import hatSprite from '../assets/characters/grad-hat.png'
 import diplomaSprite from '../assets/characters/grad-diploma.png'
 import passportSprite from '../assets/characters/passport.png'
 import townBackground from '../assets/town-profile.jpg'
+import welcomeSign from '../assets/welcomesign.png'
 import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, type Building } from './buildings'
 import {
   doorPoint,
@@ -180,7 +181,7 @@ function spawnCompanionPoints(avoid: Point): Point[] {
 // from buildings visited. Health works differently -- see HEALTH_* below --
 // it decays continuously rather than spiking and settling.
 const BASE_HAPPINESS = 70
-const BASE_EDUCATION = 85
+const BASE_EDUCATION = 35
 const MIN_HAPPINESS = 8
 
 // How long a stat takes to decay back down from its event-triggered spike
@@ -1185,10 +1186,11 @@ export default function TownMap() {
 
   return (
     <div className="town">
-      <header className="town-header">
-        <h1>Welcome to my page!</h1>
-      </header>
-      <div className="town-map-wrap">
+      <div className="town-frame">
+        <header className="town-header">
+          <img src={welcomeSign} alt="Welcome to my page!" className="town-header__sign" />
+        </header>
+        <div className="town-map-wrap">
         <img src={townBackground} alt="" className="town-map-wrap__background" />
 
         <div className="town-hud-bar town-hud-bar--happiness">
@@ -1432,6 +1434,7 @@ export default function TownMap() {
             </>
           )}
         </svg>
+      </div>
       </div>
 
       {nearBuilding && !modalBuilding && (

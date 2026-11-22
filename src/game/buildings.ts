@@ -142,7 +142,7 @@ export const BUILDINGS: Building[] = [
     y: 340,
     width: 140,
     height: 90,
-    doorOffsetX: -140,
+    doorOffsetX: 70,
     flavor: "A reminder to take care of yourself — health comes before deadlines.",
     returnFlavor: 'All good here, just a check-up.',
   },
