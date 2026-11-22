@@ -25,7 +25,7 @@ export const MAP_HEIGHT = 507
 // drifts off its building. Every building's door faces straight down onto
 // the road below its row.
 export const BUILDINGS: Building[] = [
-  // Row 1 — top street: Campinas sign, Church, TJSP, Elite School, Kenlo Software
+  // Row 1 — top street: Church, TJSP, Elite School, Kenlo Software
   {
     id: 'church',
     label: 'Church',

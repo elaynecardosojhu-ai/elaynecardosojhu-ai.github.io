@@ -54,13 +54,12 @@ interface HimMoveState {
 
 const HIM_ROWS = [ROAD1_Y, ROAD2_Y, ROAD3_Y]
 
+const CHURCH_BUILDING = BUILDINGS.find((building) => building.id === 'church')!
+const CHURCH_DOOR = doorPoint(CHURCH_BUILDING)
 const HOUSE_BUILDING = BUILDINGS.find((building) => building.id === 'house')!
 const HOUSE_DOOR = doorPoint(HOUSE_BUILDING)
 const TJSP_BUILDING = BUILDINGS.find((building) => building.id === 'tjsp')!
 const TJSP_DOOR = doorPoint(TJSP_BUILDING)
-// The TJSP building's artwork doubles as the church for the wedding scene,
-// so both the wedding escort and the breakup escort share the same door.
-const CHURCH_DOOR = TJSP_DOOR
 const TOTAL_STOPS = BUILDINGS.filter((building) => !building.noStop).length
 
 const UNICAMP_BUILDING = BUILDINGS.find((building) => building.id === 'unicamp')!
@@ -77,6 +76,10 @@ const JOB_DOORS: Record<string, Point> = Object.fromEntries(
   JOB_BUILDING_IDS.map((id) => [id, doorPoint(BUILDINGS.find((building) => building.id === id)!)]),
 )
 
+// A second, later job offer appears in front of Unicamp once the second
+// flight has happened, reusing the same collected-jobs/money-at-bank system.
+const SECOND_JOB_ID = 'unicamp-second-job'
+
 // How long the player needs to be moving around before "him" shows up, so
 // there's a moment to get oriented first.
 const HIM_APPEAR_DELAY_MS = 3000
@@ -84,6 +87,14 @@ const HIM_APPEAR_DELAY_MS = 3000
 // How long after the first graduation before the passport shows up at the
 // airport, so the graduation celebration has a moment to land first.
 const PASSPORT_APPEAR_DELAY_MS = 4000
+
+// After the first flight, the same delay is reused before the second
+// graduation hat shows up, and again before the second passport shows up.
+const SEQUEL_APPEAR_DELAY_MS = 4000
+
+// How long the player vanishes from the map for after the second flight,
+// as a little "time has passed" beat before the job offer appears.
+const PLAYER_DISAPPEAR_DURATION_MS = 2000
 
 // How long the player rides the scooter after collecting money from the
 // bank before reverting back to walking on foot.
@@ -251,8 +262,15 @@ export default function TownMap() {
   const [moneyCollectCount, setMoneyCollectCount] = useState(0)
   const [passportAvailable, setPassportAvailable] = useState(false)
   const [passportCollected, setPassportCollected] = useState(false)
+  const [diplomaAvailable, setDiplomaAvailable] = useState(false)
   const [diplomaCollected, setDiplomaCollected] = useState(false)
   const [motoActive, setMotoActive] = useState(false)
+  const [hat2Available, setHat2Available] = useState(false)
+  const [hat2Collected, setHat2Collected] = useState(false)
+  const [passport2Available, setPassport2Available] = useState(false)
+  const [passport2Collected, setPassport2Collected] = useState(false)
+  const [job2Available, setJob2Available] = useState(false)
+  const [playerHidden, setPlayerHidden] = useState(false)
   const today = formatToday()
 
   const stats = {
@@ -283,9 +301,21 @@ export default function TownMap() {
   const passportAvailableRef = useRef(false)
   const passportAppearScheduledRef = useRef(false)
   const passportCollectedRef = useRef(false)
+  const diplomaAvailableRef = useRef(false)
   const diplomaCollectedRef = useRef(false)
   const motoRevertTimeoutRef = useRef<number | null>(null)
   const passportAppearTimeoutRef = useRef<number | null>(null)
+  const hat2AvailableRef = useRef(false)
+  const hat2AppearScheduledRef = useRef(false)
+  const hat2AppearTimeoutRef = useRef<number | null>(null)
+  const hat2CollectedRef = useRef(false)
+  const passport2AvailableRef = useRef(false)
+  const passport2AppearScheduledRef = useRef(false)
+  const passport2AppearTimeoutRef = useRef<number | null>(null)
+  const passport2CollectedRef = useRef(false)
+  const job2AvailableRef = useRef(false)
+  const playerHiddenRef = useRef(false)
+  const playerHiddenTimeoutRef = useRef<number | null>(null)
   const himPhaseRef = useRef<'before-church' | 'after-church' | 'reunited' | 'done'>('before-church')
   const companionsRef = useRef<CompanionState[]>(companions)
   const companionsSpawnedRef = useRef(false)
@@ -431,7 +461,7 @@ export default function TownMap() {
         return
       }
 
-      if (!modalBuilding) {
+      if (!modalBuilding && !playerHiddenRef.current) {
         const keys = pressedKeys.current
         let dx = 0
         let dy = 0
@@ -566,11 +596,11 @@ export default function TownMap() {
         }
 
         // Catch detection: if the player reaches him, start the escort to church.
-        // Only while the player is actually in control (not already mid-escort),
-        // so one event can't accidentally trigger another.
+        // Only while the player is actually in control (not already mid-escort
+        // or hidden off-map), so one event can't accidentally trigger another.
         const current = playerRef.current
         const caughtDist = Math.hypot(current.x - nextHimState.x, current.y - nextHimState.y)
-        if (!modalBuilding && !isEscortingRef.current && caughtDist < CATCH_RADIUS) {
+        if (!modalBuilding && !isEscortingRef.current && !playerHiddenRef.current && caughtDist < CATCH_RADIUS) {
           const destination = himPhaseRef.current === 'reunited' ? 'tjsp' : 'church'
           himDestinationRef.current = destination
           escortPathRef.current = destination === 'tjsp' ? buildPathToTjsp(current) : buildPathToChurch(current)
@@ -584,7 +614,7 @@ export default function TownMap() {
 
       // Companion catch detection: if the player reaches a visible, un-rescued
       // dog or cat, start the escort to walk it home one at a time.
-      if (!modalBuilding && !isEscortingRef.current) {
+      if (!modalBuilding && !isEscortingRef.current && !playerHiddenRef.current) {
         const current = playerRef.current
         for (const companion of companionsRef.current) {
           if (!companion.visible || companion.home) continue
@@ -605,7 +635,7 @@ export default function TownMap() {
       // Graduation hat pickup, in front of Unicamp: collecting it triggers
       // the graduation celebration, unlocks the job icons below, and (after
       // a short delay) reveals the passport at the airport.
-      if (!modalBuilding && !isEscortingRef.current && !hatCollectedRef.current) {
+      if (!modalBuilding && !isEscortingRef.current && !playerHiddenRef.current && !hatCollectedRef.current) {
         const current = playerRef.current
         const dist = Math.hypot(current.x - UNICAMP_DOOR.x, current.y - UNICAMP_DOOR.y)
         if (dist < CATCH_RADIUS) {
@@ -624,7 +654,7 @@ export default function TownMap() {
 
       // Job icon pickups, one each in front of TJSP, Elite School and Kenlo
       // Software, only available once the graduation hat has been collected.
-      if (!modalBuilding && !isEscortingRef.current && hatCollectedRef.current) {
+      if (!modalBuilding && !isEscortingRef.current && !playerHiddenRef.current && hatCollectedRef.current) {
         const current = playerRef.current
         for (const id of JOB_BUILDING_IDS) {
           if (collectedJobsRef.current.has(id)) continue
@@ -647,6 +677,7 @@ export default function TownMap() {
       if (
         !modalBuilding &&
         !isEscortingRef.current &&
+        !playerHiddenRef.current &&
         collectedJobsRef.current.size > moneyCollectCountRef.current
       ) {
         const current = playerRef.current
@@ -660,23 +691,118 @@ export default function TownMap() {
       }
 
       // Passport pickup in front of the airport, available a few seconds
-      // after the first graduation: collecting it triggers a travel celebration.
-      if (!modalBuilding && !isEscortingRef.current && passportAvailableRef.current && !passportCollectedRef.current) {
+      // after the first graduation: collecting it triggers a travel celebration,
+      // then schedules the second graduation hat to appear after a delay.
+      if (
+        !modalBuilding &&
+        !isEscortingRef.current &&
+        !playerHiddenRef.current &&
+        passportAvailableRef.current &&
+        !passportCollectedRef.current
+      ) {
         const current = playerRef.current
         const dist = Math.hypot(current.x - AIRPORT_DOOR.x, current.y - AIRPORT_DOOR.y)
         if (dist < CATCH_RADIUS) {
           passportCollectedRef.current = true
           setPassportCollected(true)
           triggerCelebration(TRAVEL_EMOJIS, AIRPORT_DOOR)
+          if (!hat2AppearScheduledRef.current) {
+            hat2AppearScheduledRef.current = true
+            hat2AppearTimeoutRef.current = window.setTimeout(() => {
+              hat2AvailableRef.current = true
+              setHat2Available(true)
+            }, SEQUEL_APPEAR_DELAY_MS)
+          }
         }
       }
 
-      // Diploma pickup in front of the house, available after any graduation
-      // or travel: collecting it triggers its own celebration.
+      // Second graduation hat, in front of Unicamp again, available a while
+      // after the first flight: collecting it triggers another graduation
+      // celebration, unlocks the diploma, and schedules the second passport.
       if (
         !modalBuilding &&
         !isEscortingRef.current &&
-        (hatCollectedRef.current || passportCollectedRef.current) &&
+        !playerHiddenRef.current &&
+        hat2AvailableRef.current &&
+        !hat2CollectedRef.current
+      ) {
+        const current = playerRef.current
+        const dist = Math.hypot(current.x - UNICAMP_DOOR.x, current.y - UNICAMP_DOOR.y)
+        if (dist < CATCH_RADIUS) {
+          hat2CollectedRef.current = true
+          setHat2Collected(true)
+          triggerCelebration(GRADUATION_EMOJIS, UNICAMP_DOOR)
+          diplomaAvailableRef.current = true
+          setDiplomaAvailable(true)
+          if (!passport2AppearScheduledRef.current) {
+            passport2AppearScheduledRef.current = true
+            passport2AppearTimeoutRef.current = window.setTimeout(() => {
+              passport2AvailableRef.current = true
+              setPassport2Available(true)
+            }, SEQUEL_APPEAR_DELAY_MS)
+          }
+        }
+      }
+
+      // Second passport, at the airport again, available a while after the
+      // second graduation: collecting it triggers a travel celebration, then
+      // the player vanishes from the map briefly before the diploma (if not
+      // already out) and the new job offer appear.
+      if (
+        !modalBuilding &&
+        !isEscortingRef.current &&
+        !playerHiddenRef.current &&
+        passport2AvailableRef.current &&
+        !passport2CollectedRef.current
+      ) {
+        const current = playerRef.current
+        const dist = Math.hypot(current.x - AIRPORT_DOOR.x, current.y - AIRPORT_DOOR.y)
+        if (dist < CATCH_RADIUS) {
+          passport2CollectedRef.current = true
+          setPassport2Collected(true)
+          triggerCelebration(TRAVEL_EMOJIS, AIRPORT_DOOR)
+          playerHiddenRef.current = true
+          setPlayerHidden(true)
+          if (playerHiddenTimeoutRef.current !== null) window.clearTimeout(playerHiddenTimeoutRef.current)
+          playerHiddenTimeoutRef.current = window.setTimeout(() => {
+            playerHiddenRef.current = false
+            setPlayerHidden(false)
+            diplomaAvailableRef.current = true
+            setDiplomaAvailable(true)
+            job2AvailableRef.current = true
+            setJob2Available(true)
+          }, PLAYER_DISAPPEAR_DURATION_MS)
+        }
+      }
+
+      // Second job offer, in front of Unicamp, available once the player
+      // reappears after the second flight: collecting it triggers the usual
+      // job celebration and replenishes the money pickup at the bank.
+      if (
+        !modalBuilding &&
+        !isEscortingRef.current &&
+        !playerHiddenRef.current &&
+        job2AvailableRef.current &&
+        !collectedJobsRef.current.has(SECOND_JOB_ID)
+      ) {
+        const current = playerRef.current
+        const dist = Math.hypot(current.x - UNICAMP_DOOR.x, current.y - UNICAMP_DOOR.y)
+        if (dist < CATCH_RADIUS) {
+          const next = new Set(collectedJobsRef.current)
+          next.add(SECOND_JOB_ID)
+          collectedJobsRef.current = next
+          setCollectedJobs(next)
+          triggerCelebration(JOB_EMOJIS, UNICAMP_DOOR)
+        }
+      }
+
+      // Diploma pickup in front of the house, available after the second
+      // graduation or the second flight: collecting it triggers its own celebration.
+      if (
+        !modalBuilding &&
+        !isEscortingRef.current &&
+        !playerHiddenRef.current &&
+        diplomaAvailableRef.current &&
         !diplomaCollectedRef.current
       ) {
         const current = playerRef.current
@@ -700,6 +826,9 @@ export default function TownMap() {
       if (celebrationTimeoutRef.current !== null) window.clearTimeout(celebrationTimeoutRef.current)
       if (motoRevertTimeoutRef.current !== null) window.clearTimeout(motoRevertTimeoutRef.current)
       if (passportAppearTimeoutRef.current !== null) window.clearTimeout(passportAppearTimeoutRef.current)
+      if (hat2AppearTimeoutRef.current !== null) window.clearTimeout(hat2AppearTimeoutRef.current)
+      if (passport2AppearTimeoutRef.current !== null) window.clearTimeout(passport2AppearTimeoutRef.current)
+      if (playerHiddenTimeoutRef.current !== null) window.clearTimeout(playerHiddenTimeoutRef.current)
     }
   }, [])
 
@@ -828,6 +957,17 @@ export default function TownMap() {
             />
           )}
 
+          {hat2Available && !hat2Collected && (
+            <image
+              href={hatSprite}
+              x={UNICAMP_DOOR.x - PICKUP_WIDTH / 2}
+              y={UNICAMP_DOOR.y - PICKUP_HEIGHT - 4}
+              width={PICKUP_WIDTH}
+              height={PICKUP_HEIGHT}
+              className="town-pickup-sprite"
+            />
+          )}
+
           {hatCollected &&
             JOB_BUILDING_IDS.filter((id) => !collectedJobs.has(id)).map((id) => {
               const door = JOB_DOORS[id]
@@ -837,6 +977,12 @@ export default function TownMap() {
                 </text>
               )
             })}
+
+          {job2Available && !collectedJobs.has(SECOND_JOB_ID) && (
+            <text x={UNICAMP_DOOR.x} y={UNICAMP_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
+              👩‍💻
+            </text>
+          )}
 
           {collectedJobs.size > moneyCollectCount && (
             <text x={BANK_DOOR.x} y={BANK_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
@@ -855,7 +1001,18 @@ export default function TownMap() {
             />
           )}
 
-          {(hatCollected || passportCollected) && !diplomaCollected && (
+          {passport2Available && !passport2Collected && (
+            <image
+              href={passportSprite}
+              x={AIRPORT_DOOR.x - PICKUP_WIDTH / 2}
+              y={AIRPORT_DOOR.y - PICKUP_HEIGHT - 4}
+              width={PICKUP_WIDTH}
+              height={PICKUP_HEIGHT}
+              className="town-pickup-sprite"
+            />
+          )}
+
+          {diplomaAvailable && !diplomaCollected && (
             <image
               href={diplomaSprite}
               x={HOUSE_DOOR.x - PICKUP_WIDTH / 2}
@@ -907,16 +1064,20 @@ export default function TownMap() {
               ),
           )}
 
-          <ellipse cx={player.x} cy={player.y + PLAYER_HEIGHT / 2 - 4} rx={12} ry={5} className="player-shadow" />
-          <image
-            href={spriteSrc}
-            x={player.x - (motoActive ? MOTO_WIDTH : PLAYER_WIDTH) / 2}
-            y={player.y - (motoActive ? MOTO_HEIGHT : PLAYER_HEIGHT) / 2}
-            width={motoActive ? MOTO_WIDTH : PLAYER_WIDTH}
-            height={motoActive ? MOTO_HEIGHT : PLAYER_HEIGHT}
-            transform={shouldMirror ? `scale(-1 1) translate(${-2 * player.x} 0)` : undefined}
-            className="player-sprite"
-          />
+          {!playerHidden && (
+            <>
+              <ellipse cx={player.x} cy={player.y + PLAYER_HEIGHT / 2 - 4} rx={12} ry={5} className="player-shadow" />
+              <image
+                href={spriteSrc}
+                x={player.x - (motoActive ? MOTO_WIDTH : PLAYER_WIDTH) / 2}
+                y={player.y - (motoActive ? MOTO_HEIGHT : PLAYER_HEIGHT) / 2}
+                width={motoActive ? MOTO_WIDTH : PLAYER_WIDTH}
+                height={motoActive ? MOTO_HEIGHT : PLAYER_HEIGHT}
+                transform={shouldMirror ? `scale(-1 1) translate(${-2 * player.x} 0)` : undefined}
+                className="player-sprite"
+              />
+            </>
+          )}
         </svg>
       </div>
 
