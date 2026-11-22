@@ -54,6 +54,8 @@ const CHURCH_BUILDING = BUILDINGS.find((building) => building.id === 'church')!
 const CHURCH_DOOR = doorPoint(CHURCH_BUILDING)
 const HOUSE_BUILDING = BUILDINGS.find((building) => building.id === 'house')!
 const HOUSE_DOOR = doorPoint(HOUSE_BUILDING)
+const TJSP_BUILDING = BUILDINGS.find((building) => building.id === 'tjsp')!
+const TJSP_DOOR = doorPoint(TJSP_BUILDING)
 const TOTAL_STOPS = BUILDINGS.filter((building) => !building.noStop).length
 
 const COMPANION_WIDTH = 22
@@ -77,12 +79,13 @@ const INITIAL_COMPANIONS: CompanionState[] = [
   { id: 'cat-2', sprite: catSprite, x: 0, y: 0, visible: false, home: false, facingLeft: false },
 ]
 
-// Fixed front-yard spots just below the house door where rescued companions
-// settle in and stay, side by side.
+// Fixed front-yard spots near the house door where rescued companions settle
+// in and stay, side by side (shifted up/left of the door so they read as
+// sitting in the yard rather than standing on the doorstep).
 const COMPANION_HOME_SPOTS: Point[] = [
-  { x: HOUSE_DOOR.x - 22, y: HOUSE_DOOR.y + 14 },
-  { x: HOUSE_DOOR.x, y: HOUSE_DOOR.y + 14 },
-  { x: HOUSE_DOOR.x + 22, y: HOUSE_DOOR.y + 14 },
+  { x: HOUSE_DOOR.x - 22 - COMPANION_WIDTH * 3, y: HOUSE_DOOR.y + 14 - COMPANION_HEIGHT * 2 },
+  { x: HOUSE_DOOR.x - COMPANION_WIDTH * 3, y: HOUSE_DOOR.y + 14 - COMPANION_HEIGHT * 2 },
+  { x: HOUSE_DOOR.x + 22 - COMPANION_WIDTH * 3, y: HOUSE_DOOR.y + 14 - COMPANION_HEIGHT * 2 },
 ]
 
 
@@ -123,7 +126,9 @@ const BASE_HAPPINESS = 70
 const BASE_EDUCATION = 85
 const BASE_HEALTH = 60
 
-const CELEBRATION_EMOJIS = ['🎉', '👰', '💍', '🤵', '🎶', '🎊', '💍', '👰']
+const WEDDING_EMOJIS = ['🎉', '👰', '💍', '🤵', '🎶', '🎊', '💍', '👰']
+const PET_RESCUE_EMOJIS = ['🐶', '🐱', '🐾', '❤️', '🐾', '❤️', '🐶', '🐱']
+const BREAKUP_EMOJIS = ['🥲', '🤷‍♀️', '🤷‍♂️', '💔', '👎', '🥲', '💔', '👎']
 const CELEBRATION_DURATION_MS = 2600
 interface CelebrationParticle {
   emoji: string
@@ -133,14 +138,21 @@ interface CelebrationParticle {
   drift: number
   spin: number
 }
-const CELEBRATION_PARTICLES: CelebrationParticle[] = CELEBRATION_EMOJIS.map((emoji, i) => ({
-  emoji,
-  left: -70 + i * 20 + (i % 2 === 0 ? -6 : 6),
-  delay: (i % 4) * 140,
-  duration: 1700 + (i % 3) * 220,
-  drift: (i % 2 === 0 ? -1 : 1) * (30 + (i % 3) * 18),
-  spin: (i % 2 === 0 ? -1 : 1) * (15 + (i % 3) * 10),
-}))
+interface CelebrationState {
+  x: number
+  y: number
+  particles: CelebrationParticle[]
+}
+function buildCelebrationParticles(emojis: string[]): CelebrationParticle[] {
+  return emojis.map((emoji, i) => ({
+    emoji,
+    left: -70 + i * 20 + (i % 2 === 0 ? -6 : 6),
+    delay: (i % 4) * 140,
+    duration: 1700 + (i % 3) * 220,
+    drift: (i % 2 === 0 ? -1 : 1) * (30 + (i % 3) * 18),
+    spin: (i % 2 === 0 ? -1 : 1) * (15 + (i % 3) * 10),
+  }))
+}
 
 function isOnHorizontalRoad(y: number): boolean {
   return HIM_ROWS.some((rowY) => Math.abs(y - rowY) <= ROAD_HALF_WIDTH)
@@ -174,6 +186,10 @@ function buildPathToHouse(start: Point): Point[] {
   return buildPathToDoor(start, HOUSE_DOOR, ROAD3_Y)
 }
 
+function buildPathToTjsp(start: Point): Point[] {
+  return buildPathToDoor(start, TJSP_DOOR, ROAD1_Y)
+}
+
 export default function TownMap() {
   const { visited, visit } = useTownState()
   const [player, setPlayer] = useState<Point>({ x: VERTICAL_ROAD_X, y: ROAD2_Y })
@@ -188,7 +204,7 @@ export default function TownMap() {
   const [himWalkFrame, setHimWalkFrame] = useState(0)
   const [himVisible, setHimVisible] = useState(true)
   const [isEscorting, setIsEscorting] = useState(false)
-  const [showCelebration, setShowCelebration] = useState(false)
+  const [celebration, setCelebration] = useState<CelebrationState | null>(null)
   const [companions, setCompanions] = useState<CompanionState[]>(INITIAL_COMPANIONS)
   const today = formatToday()
 
@@ -212,6 +228,8 @@ export default function TownMap() {
   const escortIndexRef = useRef(0)
   const escortKindRef = useRef<'him' | 'companion' | null>(null)
   const escortCompanionIdRef = useRef<string | null>(null)
+  const himDestinationRef = useRef<'church' | 'tjsp'>('church')
+  const himPhaseRef = useRef<'before-church' | 'after-church' | 'reunited' | 'done'>('before-church')
   const companionsRef = useRef<CompanionState[]>(companions)
   const companionsSpawnedRef = useRef(false)
   const celebrationTimeoutRef = useRef<number | null>(null)
@@ -219,6 +237,12 @@ export default function TownMap() {
   himVisibleRef.current = himVisible
   isEscortingRef.current = isEscorting
   companionsRef.current = companions
+
+  function triggerCelebration(emojis: string[], at: Point) {
+    setCelebration({ x: at.x, y: at.y, particles: buildCelebrationParticles(emojis) })
+    if (celebrationTimeoutRef.current !== null) window.clearTimeout(celebrationTimeoutRef.current)
+    celebrationTimeoutRef.current = window.setTimeout(() => setCelebration(null), CELEBRATION_DURATION_MS)
+  }
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -258,23 +282,38 @@ export default function TownMap() {
           // Arrived: separate, hand control back to the player, and wrap up
           // whichever escort just finished.
           if (escortKindRef.current === 'him') {
-            setHimVisible(false)
-            himVisibleRef.current = false
-            setShowCelebration(true)
-            if (celebrationTimeoutRef.current !== null) window.clearTimeout(celebrationTimeoutRef.current)
-            celebrationTimeoutRef.current = window.setTimeout(() => setShowCelebration(false), CELEBRATION_DURATION_MS)
-            if (!companionsSpawnedRef.current) {
-              companionsSpawnedRef.current = true
-              const points = spawnCompanionPoints(current)
-              setCompanions((prev) => prev.map((c, i) => ({ ...c, x: points[i].x, y: points[i].y, visible: true })))
+            if (himDestinationRef.current === 'church') {
+              setHimVisible(false)
+              himVisibleRef.current = false
+              triggerCelebration(WEDDING_EMOJIS, current)
+              if (!companionsSpawnedRef.current) {
+                companionsSpawnedRef.current = true
+                const points = spawnCompanionPoints(current)
+                setCompanions((prev) => prev.map((c, i) => ({ ...c, x: points[i].x, y: points[i].y, visible: true })))
+              }
+              himPhaseRef.current = 'after-church'
+            } else {
+              setHimVisible(false)
+              himVisibleRef.current = false
+              triggerCelebration(BREAKUP_EMOJIS, current)
+              himPhaseRef.current = 'done'
             }
           } else if (escortKindRef.current === 'companion' && escortCompanionIdRef.current) {
             const rescuedId = escortCompanionIdRef.current
             setCompanions((prev) => {
               const homeIndex = prev.filter((c) => c.home).length
               const spot = COMPANION_HOME_SPOTS[homeIndex] ?? COMPANION_HOME_SPOTS[COMPANION_HOME_SPOTS.length - 1]
-              return prev.map((c) => (c.id === rescuedId ? { ...c, x: spot.x, y: spot.y, home: true } : c))
+              const next = prev.map((c) => (c.id === rescuedId ? { ...c, x: spot.x, y: spot.y, home: true } : c))
+              if (next.every((c) => c.home)) {
+                himMoveRef.current = { x: ROAD_X1, y: ROAD2_Y, axis: 'horizontal', sign: 1 }
+                setHim({ x: ROAD_X1, y: ROAD2_Y })
+                setHimVisible(true)
+                himVisibleRef.current = true
+                himPhaseRef.current = 'reunited'
+              }
+              return next
             })
+            triggerCelebration(PET_RESCUE_EMOJIS, current)
           }
           setIsEscorting(false)
           isEscortingRef.current = false
@@ -455,7 +494,9 @@ export default function TownMap() {
         const current = playerRef.current
         const caughtDist = Math.hypot(current.x - nextHimState.x, current.y - nextHimState.y)
         if (!modalBuilding && caughtDist < CATCH_RADIUS) {
-          escortPathRef.current = buildPathToChurch(current)
+          const destination = himPhaseRef.current === 'reunited' ? 'tjsp' : 'church'
+          himDestinationRef.current = destination
+          escortPathRef.current = destination === 'tjsp' ? buildPathToTjsp(current) : buildPathToChurch(current)
           escortIndexRef.current = 0
           escortKindRef.current = 'him'
           setIsEscorting(true)
@@ -541,12 +582,12 @@ export default function TownMap() {
           <div className="town-hud-bar__fill" style={{ width: `${stats.exploration}%` }} />
         </div>
 
-        {showCelebration && (
+        {celebration && (
           <div
             className="town-celebration"
-            style={{ left: `${(CHURCH_DOOR.x / MAP_WIDTH) * 100}%`, top: `${(CHURCH_DOOR.y / MAP_HEIGHT) * 100}%` }}
+            style={{ left: `${(celebration.x / MAP_WIDTH) * 100}%`, top: `${(celebration.y / MAP_HEIGHT) * 100}%` }}
           >
-            {CELEBRATION_PARTICLES.map((p, i) => (
+            {celebration.particles.map((p, i) => (
               <span
                 key={i}
                 className="town-celebration__emoji"
