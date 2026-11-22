@@ -211,9 +211,14 @@ const SICK_SPEED_MULTIPLIER = 0.35
 // exploration dips below the middle of their bars -- collecting one tops
 // that stat back up (same spike-and-decay mechanism as every other stat
 // boost), which naturally brings the icon back once it decays below the
-// middle again.
+// middle again. A love icon at the house works the same way off happiness.
 const EDUCATION_MIDDLE = 50
 const EXPLORATION_MIDDLE = 50
+const HAPPINESS_MIDDLE = 50
+// Once the endgame loop starts, exploration and happiness need an actively
+// low resting baseline (like education already has) so they keep dipping
+// below the middle instead of resting above it forever.
+const ENDGAME_LOOP_BASELINE = 35
 
 const WEDDING_EMOJIS = ['🎉', '👰', '💍', '🤵', '🎶', '🎊', '💍', '👰']
 const PET_RESCUE_EMOJIS = ['🐶', '🐱', '🐾', '❤️', '🐾', '❤️', '🐶', '🐱']
@@ -228,6 +233,7 @@ const AIRPORT_LOOP_EMOJIS = ['⁉️', '⏳', '👀']
 const GYM_EMOJIS = ['💪', '🏋️‍♂️', '🥰', '💪', '🏋️‍♂️', '🥰']
 const SUPERMARKET_EMOJIS = ['🍎', '🍓', '🍍', '🍒', '🌱', '🌻']
 const HOSPITAL_EMOJIS = ['🤒', '🤢', '🤮', '🤧', '😷']
+const LOVE_EMOJIS = ['💜', '💛', '🐶', '🐱', '😍']
 
 // A little "welcome" in several languages, each in a different font family,
 // for a more playful multilingual header than a plain English banner.
@@ -349,6 +355,7 @@ export default function TownMap() {
   const [healthIcon, setHealthIcon] = useState<'gym' | 'supermarket' | 'hospital' | null>(null)
   const [researchAvailable, setResearchAvailable] = useState(false)
   const [airportLoopAvailable, setAirportLoopAvailable] = useState(false)
+  const [loveAvailable, setLoveAvailable] = useState(false)
   const [explorationStat, setExplorationStat] = useState(
     TOTAL_STOPS > 0 ? Math.round((visited.size / TOTAL_STOPS) * 100) : 0,
   )
@@ -407,6 +414,7 @@ export default function TownMap() {
   const healthTurnRef = useRef<'gym' | 'supermarket'>('gym')
   const researchAvailableRef = useRef(false)
   const airportLoopAvailableRef = useRef(false)
+  const loveAvailableRef = useRef(false)
   const carImageReadyRef = useRef(false)
   const himPhaseRef = useRef<'before-church' | 'after-church' | 'reunited' | 'done'>('before-church')
   const companionsRef = useRef<CompanionState[]>(companions)
@@ -1006,6 +1014,19 @@ export default function TownMap() {
         }
       }
 
+      // Love icon at the house, the third part of the endgame loop: restores
+      // the happiness bar the same way.
+      if (!modalBuilding && !isEscortingRef.current && !playerHiddenRef.current && loveAvailableRef.current) {
+        const current = playerRef.current
+        const dist = Math.hypot(current.x - HOUSE_DOOR.x, current.y - HOUSE_DOOR.y)
+        if (dwellReady('love', dist < CATCH_RADIUS, dt)) {
+          loveAvailableRef.current = false
+          setLoveAvailable(false)
+          triggerCelebration(LOVE_EMOJIS, HOUSE_DOOR)
+          spikeStat(happinessSpikeRef)
+        }
+      }
+
       // Health upkeep icons: once health drops below the middle, an icon
       // appears at the gym or supermarket (alternating each time one gets
       // collected); if it's neglected long enough to get close to empty,
@@ -1084,8 +1105,34 @@ export default function TownMap() {
   useEffect(() => {
     const tick = () => {
       const now = performance.now()
-      const explorationBaseline = TOTAL_STOPS > 0 ? Math.round((visitedRef.current.size / TOTAL_STOPS) * 100) : 0
-      setHappinessStat(Math.round(clamp(statSpikeValue(happinessSpikeRef.current, now, BASE_HAPPINESS), 0, 100)))
+
+      // Endgame loop icons (research, curiosity, love, health upkeep) only
+      // begin once every other story beat has wrapped up: second flight
+      // done, the car unlocked (all three jobs + money collected), every
+      // companion rescued, and the divorce resolved.
+      const storyComplete =
+        passport2CollectedRef.current &&
+        hasCarRef.current &&
+        divorceDoneRef.current &&
+        companionsRef.current.every((c) => c.home)
+
+      // Exploration and happiness normally rest at a baseline reflecting
+      // buildings visited / a fixed comfortable level -- but once the
+      // endgame loop kicks in they need an actively low resting point (like
+      // education already has) so they keep dipping below the middle of
+      // their bars, driving the airport curiosity and house love icons,
+      // instead of resting above the middle forever.
+      const explorationBaseline = storyComplete
+        ? ENDGAME_LOOP_BASELINE
+        : TOTAL_STOPS > 0
+          ? Math.round((visitedRef.current.size / TOTAL_STOPS) * 100)
+          : 0
+      const happinessBaseline = storyComplete ? ENDGAME_LOOP_BASELINE : BASE_HAPPINESS
+
+      const happinessValue = Math.round(
+        clamp(statSpikeValue(happinessSpikeRef.current, now, happinessBaseline), 0, 100),
+      )
+      setHappinessStat(happinessValue)
       const educationValue = Math.round(
         clamp(statSpikeValue(educationSpikeRef.current, now, BASE_EDUCATION), 0, 100),
       )
@@ -1095,19 +1142,9 @@ export default function TownMap() {
       )
       setExplorationStat(explorationValue)
 
-      // Endgame loop icons (research, curiosity, health upkeep) only begin
-      // once every other story beat has wrapped up: second flight done, the
-      // car unlocked (all three jobs + money collected), every companion
-      // rescued, and the divorce resolved.
-      const storyComplete =
-        passport2CollectedRef.current &&
-        hasCarRef.current &&
-        divorceDoneRef.current &&
-        companionsRef.current.every((c) => c.home)
-
       // Endgame loop icons: once the whole story is wrapped up, the research
-      // (education) and curiosity (exploration) icons pop up whenever their
-      // stat dips below the middle of its bar.
+      // (education), curiosity (exploration) and love (happiness) icons pop
+      // up whenever their stat dips below the middle of its bar.
       if (storyComplete) {
         if (!researchAvailableRef.current && educationValue < EDUCATION_MIDDLE) {
           researchAvailableRef.current = true
@@ -1116,6 +1153,10 @@ export default function TownMap() {
         if (!airportLoopAvailableRef.current && explorationValue < EXPLORATION_MIDDLE) {
           airportLoopAvailableRef.current = true
           setAirportLoopAvailable(true)
+        }
+        if (!loveAvailableRef.current && happinessValue < HAPPINESS_MIDDLE) {
+          loveAvailableRef.current = true
+          setLoveAvailable(true)
         }
       }
 
@@ -1391,6 +1432,12 @@ export default function TownMap() {
           {airportLoopAvailable && (
             <text x={AIRPORT_DOOR.x} y={AIRPORT_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
               🔍
+            </text>
+          )}
+
+          {loveAvailable && (
+            <text x={HOUSE_DOOR.x + 22} y={HOUSE_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
+              💖
             </text>
           )}
 
