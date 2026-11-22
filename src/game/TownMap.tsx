@@ -278,10 +278,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
-function formatToday() {
-  return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
 // Builds a simple road-following route from any point on the grid to a
 // building's door: over to the vertical connector, up/down to the door's
 // own road row, across to the building, then down its spur to the door.
@@ -346,7 +342,6 @@ export default function TownMap() {
   const [explorationStat, setExplorationStat] = useState(
     TOTAL_STOPS > 0 ? Math.round((visited.size / TOTAL_STOPS) * 100) : 0,
   )
-  const today = formatToday()
 
   const stats = {
     happiness: happinessStat,
@@ -1194,11 +1189,35 @@ export default function TownMap() {
   const himSpriteSrc = himWalkFrame === 0 ? himWalk : himWalk2
   const himShouldMirror = himFacingLeft
 
+  // Checkmarks only mark buildings we're genuinely done with for good: the
+  // first-row jobs (once their job is collected), the bank (once the car is
+  // unlocked -- the last money pickup it'll ever offer), and the one-off
+  // flavor-only stops (church, park). Everything in the endgame loop
+  // (Unicamp, airport, gym, supermarket, house, hospital) never gets one,
+  // since the player keeps coming back to those.
+  function isPermanentlyDone(buildingId: string): boolean {
+    switch (buildingId) {
+      case 'tjsp':
+      case 'elite-school':
+      case 'kenlo-software':
+        return collectedJobs.has(buildingId)
+      case 'bank':
+        return hasCar
+      case 'church':
+      case 'park':
+        return visited.has(buildingId)
+      default:
+        return false
+    }
+  }
+
   return (
     <div className="town">
+      <header className="town-header">
+        <h1>Welcome to my page!</h1>
+      </header>
       <div className="town-map-wrap">
         <img src={townBackground} alt="" className="town-map-wrap__background" />
-        <div className="town-hud-date">{today}</div>
 
         <div className="town-hud-bar town-hud-bar--happiness">
           <div className="town-hud-bar__fill" style={{ width: `${stats.happiness}%` }} />
@@ -1265,7 +1284,7 @@ export default function TownMap() {
                 className={nearBuilding?.id === building.id ? 'building building--near' : 'building'}
               >
                 <circle cx={door.x} cy={door.y} r={10} className="building__door-marker" />
-                {visited.has(building.id) && (
+                {isPermanentlyDone(building.id) && (
                   <text x={door.x} y={door.y - 16} textAnchor="middle" className="building__visited-check">
                     ✓
                   </text>
