@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import meFront from '../assets/characters/me-front.png'
 import meBack from '../assets/characters/me-back.png'
@@ -49,6 +49,33 @@ const HIM_ROWS = [ROAD1_Y, ROAD2_Y, ROAD3_Y]
 
 const CHURCH_BUILDING = BUILDINGS.find((building) => building.id === 'church')!
 const CHURCH_DOOR = doorPoint(CHURCH_BUILDING)
+const TOTAL_STOPS = BUILDINGS.filter((building) => !building.noStop).length
+
+// Placeholder baseline levels for the stats that aren't yet tied to a game
+// mechanic -- easy to tune later, or wire up to real events (e.g. visiting
+// specific buildings). Exploration is already driven by buildings visited.
+const BASE_HAPPINESS = 70
+const BASE_EDUCATION = 85
+const BASE_HEALTH = 60
+
+const CELEBRATION_EMOJIS = ['🎉', '👰', '💍', '🤵', '🎶', '🎊', '💍', '👰']
+const CELEBRATION_DURATION_MS = 2600
+interface CelebrationParticle {
+  emoji: string
+  left: number
+  delay: number
+  duration: number
+  drift: number
+  spin: number
+}
+const CELEBRATION_PARTICLES: CelebrationParticle[] = CELEBRATION_EMOJIS.map((emoji, i) => ({
+  emoji,
+  left: -70 + i * 20 + (i % 2 === 0 ? -6 : 6),
+  delay: (i % 4) * 140,
+  duration: 1700 + (i % 3) * 220,
+  drift: (i % 2 === 0 ? -1 : 1) * (30 + (i % 3) * 18),
+  spin: (i % 2 === 0 ? -1 : 1) * (15 + (i % 3) * 10),
+}))
 
 function isOnHorizontalRoad(y: number): boolean {
   return HIM_ROWS.some((rowY) => Math.abs(y - rowY) <= ROAD_HALF_WIDTH)
@@ -88,7 +115,15 @@ export default function TownMap() {
   const [himWalkFrame, setHimWalkFrame] = useState(0)
   const [himVisible, setHimVisible] = useState(true)
   const [isEscorting, setIsEscorting] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(false)
   const today = formatToday()
+
+  const stats = {
+    happiness: BASE_HAPPINESS,
+    education: BASE_EDUCATION,
+    health: BASE_HEALTH,
+    exploration: TOTAL_STOPS > 0 ? Math.round((visited.size / TOTAL_STOPS) * 100) : 0,
+  }
 
   const pressedKeys = useRef(new Set<string>())
   const frameRef = useRef<number>(0)
@@ -101,6 +136,7 @@ export default function TownMap() {
   const isEscortingRef = useRef(false)
   const escortPathRef = useRef<Point[]>([])
   const escortIndexRef = useRef(0)
+  const celebrationTimeoutRef = useRef<number | null>(null)
   playerRef.current = player
   himVisibleRef.current = himVisible
   isEscortingRef.current = isEscorting
@@ -140,13 +176,16 @@ export default function TownMap() {
         const current = playerRef.current
 
         if (idx >= path.length) {
-          // Arrived: separate, hide him, and hand control back to the player.
+          // Arrived: separate, hide him, hand control back to the player, and celebrate.
           setIsEscorting(false)
           isEscortingRef.current = false
           setHimVisible(false)
           himVisibleRef.current = false
           setIsMoving(false)
           pressedKeys.current.clear()
+          setShowCelebration(true)
+          if (celebrationTimeoutRef.current !== null) window.clearTimeout(celebrationTimeoutRef.current)
+          celebrationTimeoutRef.current = window.setTimeout(() => setShowCelebration(false), CELEBRATION_DURATION_MS)
         } else {
           const target = path[idx]
           const tdx = target.x - current.x
@@ -323,6 +362,12 @@ export default function TownMap() {
   }, [modalBuilding])
 
   useEffect(() => {
+    return () => {
+      if (celebrationTimeoutRef.current !== null) window.clearTimeout(celebrationTimeoutRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
     let closest: Building | null = null
     let closestDist = Infinity
     for (const building of BUILDINGS) {
@@ -353,6 +398,45 @@ export default function TownMap() {
       <div className="town-map-wrap">
         <img src={townBackground} alt="" className="town-map-wrap__background" />
         <div className="town-hud-date">{today}</div>
+
+        <div className="town-hud-bar town-hud-bar--happiness">
+          <div className="town-hud-bar__fill" style={{ width: `${stats.happiness}%` }} />
+        </div>
+        <div className="town-hud-bar town-hud-bar--education">
+          <div className="town-hud-bar__fill" style={{ width: `${stats.education}%` }} />
+        </div>
+        <div className="town-hud-bar town-hud-bar--health">
+          <div className="town-hud-bar__fill" style={{ width: `${stats.health}%` }} />
+        </div>
+        <div className="town-hud-bar town-hud-bar--exploration">
+          <div className="town-hud-bar__fill" style={{ width: `${stats.exploration}%` }} />
+        </div>
+
+        {showCelebration && (
+          <div
+            className="town-celebration"
+            style={{ left: `${(CHURCH_DOOR.x / MAP_WIDTH) * 100}%`, top: `${(CHURCH_DOOR.y / MAP_HEIGHT) * 100}%` }}
+          >
+            {CELEBRATION_PARTICLES.map((p, i) => (
+              <span
+                key={i}
+                className="town-celebration__emoji"
+                style={
+                  {
+                    left: `${p.left}px`,
+                    animationDelay: `${p.delay}ms`,
+                    animationDuration: `${p.duration}ms`,
+                    '--town-celebration-drift': `${p.drift}px`,
+                    '--town-celebration-spin': `${p.spin}deg`,
+                  } as CSSProperties
+                }
+              >
+                {p.emoji}
+              </span>
+            ))}
+          </div>
+        )}
+
         <svg
           className="town-map"
           viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}

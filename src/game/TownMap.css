@@ -76,11 +76,102 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(9px, 1.4vw, 13px);
+  font-size: clamp(6px, 0.95vw, 10px);
   font-weight: 600;
   color: #2c2c2c;
   pointer-events: none;
   white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Fulfillable HUD stat bars: overlaid on top of the baked-in bar artwork so
+   their fill % can be controlled live (see `stats` in TownMap.tsx). The
+   track fully covers the static illustration underneath, and the colored
+   fill div reveals the real, controllable percentage. */
+.town-hud-bar {
+  position: absolute;
+  top: 6.6%;
+  height: 1.9%;
+  border-radius: 999px;
+  background: #f0dfc4;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.town-hud-bar--happiness {
+  left: 26.3%;
+  width: 7.6%;
+}
+
+.town-hud-bar--education {
+  left: 38.7%;
+  width: 7.6%;
+}
+
+.town-hud-bar--health {
+  left: 51%;
+  width: 7.6%;
+}
+
+.town-hud-bar--exploration {
+  left: 63.3%;
+  width: 7.6%;
+}
+
+.town-hud-bar__fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s ease;
+}
+
+.town-hud-bar--happiness .town-hud-bar__fill {
+  background: linear-gradient(90deg, #7bd96a, #4caf50);
+}
+
+.town-hud-bar--education .town-hud-bar__fill {
+  background: linear-gradient(90deg, #4fb0f7, #1e88e5);
+}
+
+.town-hud-bar--health .town-hud-bar__fill {
+  background: linear-gradient(90deg, #f06d6a, #e53935);
+}
+
+.town-hud-bar--exploration .town-hud-bar__fill {
+  background: linear-gradient(90deg, #b457ca, #8e24aa);
+}
+
+/* Wedding-emoji celebration burst, triggered when the escort to the church completes. */
+.town-celebration {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.town-celebration__emoji {
+  position: absolute;
+  bottom: 0;
+  font-size: clamp(16px, 2.6vw, 26px);
+  opacity: 0;
+  animation-name: town-celebration-rise;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+
+@keyframes town-celebration-rise {
+  0% {
+    transform: translate(-50%, 0) scale(0.5) rotate(0deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--town-celebration-drift, 0px)), -170px) scale(1.15)
+      rotate(var(--town-celebration-spin, 0deg));
+    opacity: 0;
+  }
 }
 
 .town-enter-prompt {
