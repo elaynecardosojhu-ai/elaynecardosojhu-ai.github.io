@@ -59,6 +59,25 @@
   stroke-width: 3px;
 }
 
+.town-pickup-emoji {
+  font-size: 20px;
+  text-anchor: middle;
+  animation: town-pickup-bob 1.6s ease-in-out infinite;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.6);
+  stroke-width: 2px;
+}
+
+@keyframes town-pickup-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
 .player-shadow {
   fill: rgba(0, 0, 0, 0.2);
 }

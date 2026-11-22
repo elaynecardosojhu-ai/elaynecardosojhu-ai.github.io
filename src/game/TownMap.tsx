@@ -58,6 +58,22 @@ const TJSP_BUILDING = BUILDINGS.find((building) => building.id === 'tjsp')!
 const TJSP_DOOR = doorPoint(TJSP_BUILDING)
 const TOTAL_STOPS = BUILDINGS.filter((building) => !building.noStop).length
 
+const UNICAMP_BUILDING = BUILDINGS.find((building) => building.id === 'unicamp')!
+const UNICAMP_DOOR = doorPoint(UNICAMP_BUILDING)
+const BANK_BUILDING = BUILDINGS.find((building) => building.id === 'bank')!
+const BANK_DOOR = doorPoint(BANK_BUILDING)
+
+// Job opportunities unlock (one icon each) once the graduation hat has been
+// collected, in front of the three "career" buildings.
+const JOB_BUILDING_IDS = ['tjsp', 'elite-school', 'kenlo-software'] as const
+const JOB_DOORS: Record<string, Point> = Object.fromEntries(
+  JOB_BUILDING_IDS.map((id) => [id, doorPoint(BUILDINGS.find((building) => building.id === id)!)]),
+)
+
+// How long the player needs to be moving around before "him" shows up, so
+// there's a moment to get oriented first.
+const HIM_APPEAR_DELAY_MS = 3000
+
 const COMPANION_WIDTH = 22
 const COMPANION_HEIGHT = 22
 
@@ -129,6 +145,9 @@ const BASE_HEALTH = 60
 const WEDDING_EMOJIS = ['🎉', '👰', '💍', '🤵', '🎶', '🎊', '💍', '👰']
 const PET_RESCUE_EMOJIS = ['🐶', '🐱', '🐾', '❤️', '🐾', '❤️', '🐶', '🐱']
 const BREAKUP_EMOJIS = ['🥲', '🤷‍♀️', '🤷‍♂️', '💔', '👎', '🥲', '💔', '👎']
+const GRADUATION_EMOJIS = ['🎓', '👩‍🎓', '🎉', '📜', '👏', '🎓', '🎉', '📜']
+const JOB_EMOJIS = ['🪙', '🌱', '💪', '🌱', '📈', '🪙', '💪', '📈']
+const MONEY_EMOJIS = ['🤑', '🪙', '💵', '👏', '🤑', '💵', '🪙', '👏']
 const CELEBRATION_DURATION_MS = 2600
 interface CelebrationParticle {
   emoji: string
@@ -202,10 +221,13 @@ export default function TownMap() {
   const [him, setHim] = useState<Point>({ x: ROAD_X1, y: ROAD2_Y })
   const [himFacingLeft, setHimFacingLeft] = useState(false)
   const [himWalkFrame, setHimWalkFrame] = useState(0)
-  const [himVisible, setHimVisible] = useState(true)
+  const [himVisible, setHimVisible] = useState(false)
   const [isEscorting, setIsEscorting] = useState(false)
   const [celebration, setCelebration] = useState<CelebrationState | null>(null)
   const [companions, setCompanions] = useState<CompanionState[]>(INITIAL_COMPANIONS)
+  const [hatCollected, setHatCollected] = useState(false)
+  const [collectedJobs, setCollectedJobs] = useState<Set<string>>(new Set())
+  const [moneyCollected, setMoneyCollected] = useState(false)
   const today = formatToday()
 
   const stats = {
@@ -222,13 +244,17 @@ export default function TownMap() {
   const walkFrameCounterRef = useRef(0)
   const himMoveRef = useRef<HimMoveState>({ x: ROAD_X1, y: ROAD2_Y, axis: 'horizontal', sign: 1 })
   const himWalkFrameCounterRef = useRef(0)
-  const himVisibleRef = useRef(true)
+  const himVisibleRef = useRef(false)
+  const himAppearScheduledRef = useRef(false)
   const isEscortingRef = useRef(false)
   const escortPathRef = useRef<Point[]>([])
   const escortIndexRef = useRef(0)
   const escortKindRef = useRef<'him' | 'companion' | null>(null)
   const escortCompanionIdRef = useRef<string | null>(null)
   const himDestinationRef = useRef<'church' | 'tjsp'>('church')
+  const hatCollectedRef = useRef(false)
+  const collectedJobsRef = useRef<Set<string>>(new Set())
+  const moneyCollectedRef = useRef(false)
   const himPhaseRef = useRef<'before-church' | 'after-church' | 'reunited' | 'done'>('before-church')
   const companionsRef = useRef<CompanionState[]>(companions)
   const companionsSpawnedRef = useRef(false)
@@ -407,6 +433,18 @@ export default function TownMap() {
             if (nextX !== current.x) setFacingLeft(nextX < current.x)
           }
 
+          // Give the player a few seconds of uninterrupted movement to get
+          // oriented before "him" shows up on the roads for the first time.
+          if (moved && !himAppearScheduledRef.current && himPhaseRef.current === 'before-church') {
+            himAppearScheduledRef.current = true
+            window.setTimeout(() => {
+              if (himPhaseRef.current === 'before-church') {
+                setHimVisible(true)
+                himVisibleRef.current = true
+              }
+            }, HIM_APPEAR_DELAY_MS)
+          }
+
           if (moved) {
             walkFrameCounterRef.current += 1
             if (walkFrameCounterRef.current >= WALK_FRAME_SKIP) {
@@ -525,7 +563,51 @@ export default function TownMap() {
         }
       }
 
+      // Graduation hat pickup, in front of Unicamp: collecting it triggers
+      // the graduation celebration and unlocks the job icons below.
+      if (!modalBuilding && !isEscortingRef.current && !hatCollectedRef.current) {
+        const current = playerRef.current
+        const dist = Math.hypot(current.x - UNICAMP_DOOR.x, current.y - UNICAMP_DOOR.y)
+        if (dist < CATCH_RADIUS) {
+          hatCollectedRef.current = true
+          setHatCollected(true)
+          triggerCelebration(GRADUATION_EMOJIS, UNICAMP_DOOR)
+        }
+      }
+
+      // Job icon pickups, one each in front of TJSP, Elite School and Kenlo
+      // Software, only available once the graduation hat has been collected.
+      if (!modalBuilding && !isEscortingRef.current && hatCollectedRef.current) {
+        const current = playerRef.current
+        for (const id of JOB_BUILDING_IDS) {
+          if (collectedJobsRef.current.has(id)) continue
+          const door = JOB_DOORS[id]
+          const dist = Math.hypot(current.x - door.x, current.y - door.y)
+          if (dist < CATCH_RADIUS) {
+            const next = new Set(collectedJobsRef.current)
+            next.add(id)
+            collectedJobsRef.current = next
+            setCollectedJobs(next)
+            triggerCelebration(JOB_EMOJIS, door)
+            break
+          }
+        }
+      }
+
+      // Money pickup in front of the bank: appears once the first job has
+      // been taken, and triggers its own celebration when collected.
+      if (!modalBuilding && !isEscortingRef.current && collectedJobsRef.current.size > 0 && !moneyCollectedRef.current) {
+        const current = playerRef.current
+        const dist = Math.hypot(current.x - BANK_DOOR.x, current.y - BANK_DOOR.y)
+        if (dist < CATCH_RADIUS) {
+          moneyCollectedRef.current = true
+          setMoneyCollected(true)
+          triggerCelebration(MONEY_EMOJIS, BANK_DOOR)
+        }
+      }
+
       frameRef.current = requestAnimationFrame(step)
+
     }
     frameRef.current = requestAnimationFrame(step)
     return () => cancelAnimationFrame(frameRef.current)
@@ -642,6 +724,28 @@ export default function TownMap() {
               </g>
             )
           })}
+
+          {!hatCollected && (
+            <text x={UNICAMP_DOOR.x} y={UNICAMP_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
+              🎓
+            </text>
+          )}
+
+          {hatCollected &&
+            JOB_BUILDING_IDS.filter((id) => !collectedJobs.has(id)).map((id) => {
+              const door = JOB_DOORS[id]
+              return (
+                <text key={id} x={door.x} y={door.y - 6} textAnchor="middle" className="town-pickup-emoji">
+                  👩‍💻
+                </text>
+              )
+            })}
+
+          {collectedJobs.size > 0 && !moneyCollected && (
+            <text x={BANK_DOOR.x} y={BANK_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
+              💰
+            </text>
+          )}
 
           {himVisible && (
             <>
