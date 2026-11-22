@@ -16,7 +16,6 @@ import hatSprite from '../assets/characters/grad-hat.png'
 import diplomaSprite from '../assets/characters/grad-diploma.png'
 import passportSprite from '../assets/characters/passport.png'
 import townBackground from '../assets/town-profile.jpg'
-import welcomeSign from '../assets/welcomesign.png'
 import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, type Building } from './buildings'
 import {
   doorPoint,
@@ -229,6 +228,17 @@ const AIRPORT_LOOP_EMOJIS = ['⁉️', '⏳', '👀']
 const GYM_EMOJIS = ['💪', '🏋️‍♂️', '🥰', '💪', '🏋️‍♂️', '🥰']
 const SUPERMARKET_EMOJIS = ['🍎', '🍓', '🍍', '🍒', '🌱', '🌻']
 const HOSPITAL_EMOJIS = ['🤒', '🤢', '🤮', '🤧', '😷']
+
+// A little "welcome" in several languages, each in a different font family,
+// for a more playful multilingual header than a plain English banner.
+const GREETINGS: { text: string; font: string }[] = [
+  { text: 'Welcome', font: "'Georgia', serif" },
+  { text: 'Bem-vindo', font: "'Brush Script MT', cursive" },
+  { text: 'Willkommen', font: "'Courier New', monospace" },
+  { text: 'Benvenuto', font: "'Comic Sans MS', cursive" },
+  { text: 'Bienvenido', font: "'Trebuchet MS', sans-serif" },
+  { text: '欢迎', font: "'STKaiti', 'KaiTi', serif" },
+]
 const CELEBRATION_DURATION_MS = 2600
 interface CelebrationParticle {
   emoji: string
@@ -401,6 +411,7 @@ export default function TownMap() {
   const himPhaseRef = useRef<'before-church' | 'after-church' | 'reunited' | 'done'>('before-church')
   const companionsRef = useRef<CompanionState[]>(companions)
   const companionsSpawnedRef = useRef(false)
+  const divorceDoneRef = useRef(false)
   const celebrationTimeoutRef = useRef<number | null>(null)
   playerRef.current = player
   himVisibleRef.current = himVisible
@@ -528,6 +539,7 @@ export default function TownMap() {
               himVisibleRef.current = false
               triggerCelebration(BREAKUP_EMOJIS, current)
               himPhaseRef.current = 'done'
+              divorceDoneRef.current = true
               setDivorceDone(true)
               // After the divorce, happiness rebounds to the top and slowly settles back down.
               spikeStat(happinessSpikeRef)
@@ -1083,10 +1095,20 @@ export default function TownMap() {
       )
       setExplorationStat(explorationValue)
 
-      // Endgame loop icons: once the second flight is done, the research
+      // Endgame loop icons (research, curiosity, health upkeep) only begin
+      // once every other story beat has wrapped up: second flight done, the
+      // car unlocked (all three jobs + money collected), every companion
+      // rescued, and the divorce resolved.
+      const storyComplete =
+        passport2CollectedRef.current &&
+        hasCarRef.current &&
+        divorceDoneRef.current &&
+        companionsRef.current.every((c) => c.home)
+
+      // Endgame loop icons: once the whole story is wrapped up, the research
       // (education) and curiosity (exploration) icons pop up whenever their
       // stat dips below the middle of its bar.
-      if (passport2CollectedRef.current) {
+      if (storyComplete) {
         if (!researchAvailableRef.current && educationValue < EDUCATION_MIDDLE) {
           researchAvailableRef.current = true
           setResearchAvailable(true)
@@ -1099,8 +1121,8 @@ export default function TownMap() {
 
       // Health decays continuously (unlike the spike-based stats above) and
       // drives its own upkeep icons at the gym/supermarket/hospital -- but
-      // only once the second flight is done.
-      if (!passport2CollectedRef.current) return
+      // only once the whole story is wrapped up.
+      if (!storyComplete) return
       const healthStep = (HEALTH_MAX - HEALTH_MIN) * (STAT_TICK_MS / HEALTH_DECAY_DURATION_MS)
       healthRef.current = clamp(healthRef.current - healthStep, HEALTH_MIN, HEALTH_MAX)
       if (healthIconRef.current === null && healthRef.current < HEALTH_MIDDLE) {
@@ -1186,10 +1208,14 @@ export default function TownMap() {
 
   return (
     <div className="town">
-      <div className="town-frame">
-        <header className="town-header">
-          <img src={welcomeSign} alt="Welcome to my page!" className="town-header__sign" />
-        </header>
+      <header className="town-header">
+        {GREETINGS.map((g) => (
+          <span key={g.text} className="town-header__greeting" style={{ fontFamily: g.font }}>
+            {g.text}
+          </span>
+        ))}
+      </header>
+      <div className="town-black-band">
         <div className="town-map-wrap">
         <img src={townBackground} alt="" className="town-map-wrap__background" />
 
