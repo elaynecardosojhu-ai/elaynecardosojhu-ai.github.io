@@ -10,6 +10,7 @@ import dog1Sprite from '../assets/characters/dog-1.png'
 import dog2Sprite from '../assets/characters/dog-2.png'
 import catSprite from '../assets/characters/cat-2.png'
 import meMoto from '../assets/characters/me-moto.png'
+import meCar from '../assets/characters/me-car.png'
 import hatSprite from '../assets/characters/grad-hat.png'
 import diplomaSprite from '../assets/characters/grad-diploma.png'
 import passportSprite from '../assets/characters/passport.png'
@@ -165,12 +166,24 @@ function spawnCompanionPoints(avoid: Point): Point[] {
   return points
 }
 
-// Placeholder baseline levels for the stats that aren't yet tied to a game
-// mechanic -- easy to tune later, or wire up to real events (e.g. visiting
-// specific buildings). Exploration is already driven by buildings visited.
+// Resting/baseline levels the stat bars settle back towards once any event
+// -driven spike has fully decayed. Exploration's baseline is computed live
+// from buildings visited; health has no event tied to it yet.
 const BASE_HAPPINESS = 70
 const BASE_EDUCATION = 85
 const BASE_HEALTH = 60
+const MIN_HAPPINESS = 8
+
+// How long a stat takes to decay back down from its event-triggered spike
+// (100%) to its resting baseline.
+const STAT_DECAY_DURATION_MS = 15000
+// How often the decaying stat values are recomputed and re-rendered.
+const STAT_TICK_MS = 400
+
+// How long the player must stand still, inside a pickup's catch radius,
+// before it actually gets collected -- so walking past an icon while moving
+// through doesn't pick it up by accident.
+const PICKUP_DWELL_MS = 450
 
 const WEDDING_EMOJIS = ['🎉', '👰', '💍', '🤵', '🎶', '🎊', '💍', '👰']
 const PET_RESCUE_EMOJIS = ['🐶', '🐱', '🐾', '❤️', '🐾', '❤️', '🐶', '🐱']
@@ -193,6 +206,22 @@ interface CelebrationState {
   x: number
   y: number
   particles: CelebrationParticle[]
+}
+// A stat "spike": jumps to `from` at `start`, then either holds there forever
+// (duration = Infinity, used for the happiness dip while "him" is back) or
+// linearly decays towards the live baseline over `duration` ms.
+interface StatSpike {
+  from: number
+  start: number
+  duration: number
+}
+function statSpikeValue(spike: StatSpike | null, now: number, baseline: number): number {
+  if (!spike) return baseline
+  const elapsed = now - spike.start
+  if (!Number.isFinite(spike.duration) || elapsed <= 0) return spike.from
+  if (elapsed >= spike.duration) return baseline
+  const t = elapsed / spike.duration
+  return spike.from + (baseline - spike.from) * t
 }
 function buildCelebrationParticles(emojis: string[]): CelebrationParticle[] {
   return emojis.map((emoji, i) => ({
@@ -271,13 +300,19 @@ export default function TownMap() {
   const [passport2Collected, setPassport2Collected] = useState(false)
   const [job2Available, setJob2Available] = useState(false)
   const [playerHidden, setPlayerHidden] = useState(false)
+  const [hasCar, setHasCar] = useState(false)
+  const [happinessStat, setHappinessStat] = useState(BASE_HAPPINESS)
+  const [educationStat, setEducationStat] = useState(BASE_EDUCATION)
+  const [explorationStat, setExplorationStat] = useState(
+    TOTAL_STOPS > 0 ? Math.round((visited.size / TOTAL_STOPS) * 100) : 0,
+  )
   const today = formatToday()
 
   const stats = {
-    happiness: BASE_HAPPINESS,
-    education: BASE_EDUCATION,
+    happiness: happinessStat,
+    education: educationStat,
     health: BASE_HEALTH,
-    exploration: TOTAL_STOPS > 0 ? Math.round((visited.size / TOTAL_STOPS) * 100) : 0,
+    exploration: explorationStat,
   }
 
   const pressedKeys = useRef(new Set<string>())
@@ -316,6 +351,13 @@ export default function TownMap() {
   const job2AvailableRef = useRef(false)
   const playerHiddenRef = useRef(false)
   const playerHiddenTimeoutRef = useRef<number | null>(null)
+  const hasCarRef = useRef(false)
+  const isMovingRef = useRef(false)
+  const dwellRef = useRef<Record<string, number>>({})
+  const visitedRef = useRef(visited)
+  const happinessSpikeRef = useRef<StatSpike | null>(null)
+  const educationSpikeRef = useRef<StatSpike | null>(null)
+  const explorationSpikeRef = useRef<StatSpike | null>(null)
   const himPhaseRef = useRef<'before-church' | 'after-church' | 'reunited' | 'done'>('before-church')
   const companionsRef = useRef<CompanionState[]>(companions)
   const companionsSpawnedRef = useRef(false)
@@ -324,11 +366,32 @@ export default function TownMap() {
   himVisibleRef.current = himVisible
   isEscortingRef.current = isEscorting
   companionsRef.current = companions
+  visitedRef.current = visited
 
   function triggerCelebration(emojis: string[], at: Point) {
     setCelebration({ x: at.x, y: at.y, particles: buildCelebrationParticles(emojis) })
     if (celebrationTimeoutRef.current !== null) window.clearTimeout(celebrationTimeoutRef.current)
     celebrationTimeoutRef.current = window.setTimeout(() => setCelebration(null), CELEBRATION_DURATION_MS)
+  }
+
+  function spikeStat(ref: { current: StatSpike | null }, from = 100, duration = STAT_DECAY_DURATION_MS) {
+    ref.current = { from, start: performance.now(), duration }
+  }
+
+  // Returns true exactly once the player has stood still, within range of a
+  // pickup, for PICKUP_DWELL_MS -- resets as soon as they leave or move.
+  function dwellReady(key: string, withinRange: boolean, dt: number): boolean {
+    if (!withinRange || isMovingRef.current) {
+      dwellRef.current[key] = 0
+      return false
+    }
+    const next = (dwellRef.current[key] ?? 0) + dt * 1000
+    dwellRef.current[key] = next
+    if (next >= PICKUP_DWELL_MS) {
+      dwellRef.current[key] = 0
+      return true
+    }
+    return false
   }
 
   function startMotoRide() {
@@ -390,6 +453,8 @@ export default function TownMap() {
               himVisibleRef.current = false
               triggerCelebration(BREAKUP_EMOJIS, current)
               himPhaseRef.current = 'done'
+              // After the divorce, happiness rebounds to the top and slowly settles back down.
+              spikeStat(happinessSpikeRef)
             }
           } else if (escortKindRef.current === 'companion' && escortCompanionIdRef.current) {
             const rescuedId = escortCompanionIdRef.current
@@ -397,17 +462,23 @@ export default function TownMap() {
               const homeIndex = prev.filter((c) => c.home).length
               const spot = COMPANION_HOME_SPOTS[homeIndex] ?? COMPANION_HOME_SPOTS[COMPANION_HOME_SPOTS.length - 1]
               const next = prev.map((c) => (c.id === rescuedId ? { ...c, x: spot.x, y: spot.y, home: true } : c))
+              // Every rescue gives happiness a boost that then decays...
+              spikeStat(happinessSpikeRef)
               if (next.every((c) => c.home)) {
                 himMoveRef.current = { x: ROAD_X1, y: ROAD2_Y, axis: 'horizontal', sign: 1 }
                 setHim({ x: ROAD_X1, y: ROAD2_Y })
                 setHimVisible(true)
                 himVisibleRef.current = true
                 himPhaseRef.current = 'reunited'
+                // ...unless that was the last pet and "him" reappears, which
+                // dips happiness to its minimum until the divorce happens.
+                happinessSpikeRef.current = { from: MIN_HAPPINESS, start: performance.now(), duration: Infinity }
               }
               return next
             })
             triggerCelebration(PET_RESCUE_EMOJIS, current)
           }
+
           setIsEscorting(false)
           isEscortingRef.current = false
           setIsMoving(false)
@@ -519,17 +590,21 @@ export default function TownMap() {
               setWalkFrame((f) => (f === 0 ? 1 : 0))
             }
             setIsMoving(true)
+            isMovingRef.current = true
           } else {
             walkFrameCounterRef.current = 0
             setIsMoving(false)
+            isMovingRef.current = false
           }
         } else {
           walkFrameCounterRef.current = 0
           setIsMoving(false)
+          isMovingRef.current = false
         }
       } else {
         walkFrameCounterRef.current = 0
         setIsMoving(false)
+        isMovingRef.current = false
       }
 
       // Background NPC: follows the trunk roads, turning at intersections,
@@ -633,15 +708,19 @@ export default function TownMap() {
       }
 
       // Graduation hat pickup, in front of Unicamp: collecting it triggers
-      // the graduation celebration, unlocks the job icons below, and (after
-      // a short delay) reveals the passport at the airport.
+      // the graduation celebration, unlocks the job icons below, reveals the
+      // diploma, and (after a short delay) reveals the passport at the airport.
+      // Requires standing still on the icon for a moment, not just walking past.
       if (!modalBuilding && !isEscortingRef.current && !playerHiddenRef.current && !hatCollectedRef.current) {
         const current = playerRef.current
         const dist = Math.hypot(current.x - UNICAMP_DOOR.x, current.y - UNICAMP_DOOR.y)
-        if (dist < CATCH_RADIUS) {
+        if (dwellReady('hat1', dist < CATCH_RADIUS, dt)) {
           hatCollectedRef.current = true
           setHatCollected(true)
           triggerCelebration(GRADUATION_EMOJIS, UNICAMP_DOOR)
+          spikeStat(educationSpikeRef)
+          diplomaAvailableRef.current = true
+          setDiplomaAvailable(true)
           if (!passportAppearScheduledRef.current) {
             passportAppearScheduledRef.current = true
             passportAppearTimeoutRef.current = window.setTimeout(() => {
@@ -660,7 +739,7 @@ export default function TownMap() {
           if (collectedJobsRef.current.has(id)) continue
           const door = JOB_DOORS[id]
           const dist = Math.hypot(current.x - door.x, current.y - door.y)
-          if (dist < CATCH_RADIUS) {
+          if (dwellReady(`job-${id}`, dist < CATCH_RADIUS, dt)) {
             const next = new Set(collectedJobsRef.current)
             next.add(id)
             collectedJobsRef.current = next
@@ -673,7 +752,9 @@ export default function TownMap() {
 
       // Money pickup in front of the bank: appears after each job taken (even
       // replenishing after being collected, as long as another job has since
-      // been taken), and triggers its own celebration when collected.
+      // been taken), and triggers its own celebration when collected. Taking
+      // it syncs the collected count fully, so an unpicked-up money never
+      // stacks -- the next one simply replaces it.
       if (
         !modalBuilding &&
         !isEscortingRef.current &&
@@ -682,10 +763,14 @@ export default function TownMap() {
       ) {
         const current = playerRef.current
         const dist = Math.hypot(current.x - BANK_DOOR.x, current.y - BANK_DOOR.y)
-        if (dist < CATCH_RADIUS) {
-          moneyCollectCountRef.current += 1
+        if (dwellReady('money', dist < CATCH_RADIUS, dt)) {
+          moneyCollectCountRef.current = collectedJobsRef.current.size
           setMoneyCollectCount(moneyCollectCountRef.current)
           triggerCelebration(MONEY_EMOJIS, BANK_DOOR)
+          if (collectedJobsRef.current.has(SECOND_JOB_ID)) {
+            hasCarRef.current = true
+            setHasCar(true)
+          }
           startMotoRide()
         }
       }
@@ -702,10 +787,13 @@ export default function TownMap() {
       ) {
         const current = playerRef.current
         const dist = Math.hypot(current.x - AIRPORT_DOOR.x, current.y - AIRPORT_DOOR.y)
-        if (dist < CATCH_RADIUS) {
+        if (dwellReady('passport1', dist < CATCH_RADIUS, dt)) {
           passportCollectedRef.current = true
           setPassportCollected(true)
           triggerCelebration(TRAVEL_EMOJIS, AIRPORT_DOOR)
+          spikeStat(explorationSpikeRef)
+          diplomaAvailableRef.current = true
+          setDiplomaAvailable(true)
           if (!hat2AppearScheduledRef.current) {
             hat2AppearScheduledRef.current = true
             hat2AppearTimeoutRef.current = window.setTimeout(() => {
@@ -728,10 +816,11 @@ export default function TownMap() {
       ) {
         const current = playerRef.current
         const dist = Math.hypot(current.x - UNICAMP_DOOR.x, current.y - UNICAMP_DOOR.y)
-        if (dist < CATCH_RADIUS) {
+        if (dwellReady('hat2', dist < CATCH_RADIUS, dt)) {
           hat2CollectedRef.current = true
           setHat2Collected(true)
           triggerCelebration(GRADUATION_EMOJIS, UNICAMP_DOOR)
+          spikeStat(educationSpikeRef)
           diplomaAvailableRef.current = true
           setDiplomaAvailable(true)
           if (!passport2AppearScheduledRef.current) {
@@ -757,10 +846,11 @@ export default function TownMap() {
       ) {
         const current = playerRef.current
         const dist = Math.hypot(current.x - AIRPORT_DOOR.x, current.y - AIRPORT_DOOR.y)
-        if (dist < CATCH_RADIUS) {
+        if (dwellReady('passport2', dist < CATCH_RADIUS, dt)) {
           passport2CollectedRef.current = true
           setPassport2Collected(true)
           triggerCelebration(TRAVEL_EMOJIS, AIRPORT_DOOR)
+          spikeStat(explorationSpikeRef)
           playerHiddenRef.current = true
           setPlayerHidden(true)
           if (playerHiddenTimeoutRef.current !== null) window.clearTimeout(playerHiddenTimeoutRef.current)
@@ -787,7 +877,7 @@ export default function TownMap() {
       ) {
         const current = playerRef.current
         const dist = Math.hypot(current.x - UNICAMP_DOOR.x, current.y - UNICAMP_DOOR.y)
-        if (dist < CATCH_RADIUS) {
+        if (dwellReady('job2', dist < CATCH_RADIUS, dt)) {
           const next = new Set(collectedJobsRef.current)
           next.add(SECOND_JOB_ID)
           collectedJobsRef.current = next
@@ -796,8 +886,10 @@ export default function TownMap() {
         }
       }
 
-      // Diploma pickup in front of the house, available after the second
-      // graduation or the second flight: collecting it triggers its own celebration.
+      // Diploma pickup in front of the house, available after any graduation
+      // or flight: collecting it triggers its own celebration. If a diploma
+      // isn't picked up before the next graduation/flight, it just stays put
+      // (there's only ever one diploma marker, so there's nothing to replace).
       if (
         !modalBuilding &&
         !isEscortingRef.current &&
@@ -807,7 +899,7 @@ export default function TownMap() {
       ) {
         const current = playerRef.current
         const dist = Math.hypot(current.x - HOUSE_DOOR.x, current.y - HOUSE_DOOR.y)
-        if (dist < CATCH_RADIUS) {
+        if (dwellReady('diploma', dist < CATCH_RADIUS, dt)) {
           diplomaCollectedRef.current = true
           setDiplomaCollected(true)
           triggerCelebration(DIPLOMA_EMOJIS, HOUSE_DOOR)
@@ -832,6 +924,23 @@ export default function TownMap() {
     }
   }, [])
 
+  // Continuously recompute the decaying/dipping stat bar values, independent
+  // of movement, so a spike (e.g. from a graduation) keeps decaying even
+  // while the player stands still.
+  useEffect(() => {
+    const tick = () => {
+      const now = performance.now()
+      const explorationBaseline = TOTAL_STOPS > 0 ? Math.round((visitedRef.current.size / TOTAL_STOPS) * 100) : 0
+      setHappinessStat(Math.round(clamp(statSpikeValue(happinessSpikeRef.current, now, BASE_HAPPINESS), 0, 100)))
+      setEducationStat(Math.round(clamp(statSpikeValue(educationSpikeRef.current, now, BASE_EDUCATION), 0, 100)))
+      setExplorationStat(
+        Math.round(clamp(statSpikeValue(explorationSpikeRef.current, now, explorationBaseline), 0, 100)),
+      )
+    }
+    const id = window.setInterval(tick, STAT_TICK_MS)
+    return () => window.clearInterval(id)
+  }, [])
+
   useEffect(() => {
     let closest: Building | null = null
     let closestDist = Infinity
@@ -854,7 +963,9 @@ export default function TownMap() {
   }
 
   const spriteSrc = motoActive
-    ? meMoto
+    ? hasCar
+      ? meCar
+      : meMoto
     : isMoving
       ? walkFrame === 0
         ? meWalk
