@@ -8,6 +8,10 @@ export interface Building {
   route?: string
   flavor: string
   returnFlavor: string
+  /** Skip rendering a door marker / proximity trigger for this building. */
+  noStop?: boolean
+  /** Nudge the computed door point horizontally to better meet the artwork's door. */
+  doorOffsetX?: number
 }
 
 // Matches the aspect ratio of src/assets/town-profile.jpg (1672 x 941).
@@ -21,7 +25,7 @@ export const MAP_HEIGHT = 507
 // drifts off its building. Every building's door faces straight down onto
 // the road below its row.
 export const BUILDINGS: Building[] = [
-  // Row 1 — top street: TJSP, Elite School, Kenlo Software
+  // Row 1 — top street: TJSP (church artwork, no stop point), Elite School, Kenlo Software
   {
     id: 'tjsp',
     label: 'TJSP',
@@ -29,6 +33,7 @@ export const BUILDINGS: Building[] = [
     y: 60,
     width: 130,
     height: 90,
+    noStop: true,
     flavor: 'Yes, I worked here! True story.',
     returnFlavor: 'Still standing tall — good memories in this building.',
   },
@@ -39,6 +44,7 @@ export const BUILDINGS: Building[] = [
     y: 60,
     width: 130,
     height: 90,
+    doorOffsetX: 18,
     flavor: 'Where it all started — early mornings, uniforms, and a lot of homework.',
     returnFlavor: 'Still hear the school bell every time I walk by.',
   },
@@ -49,6 +55,7 @@ export const BUILDINGS: Building[] = [
     y: 60,
     width: 130,
     height: 90,
+    doorOffsetX: 18,
     flavor: "This is where I currently work — building software, one feature at a time.",
     returnFlavor: 'Still clocked in — the work keeps evolving.',
   },

@@ -35,6 +35,8 @@ const HIM_WIDTH = 26
 const HIM_HEIGHT = 38
 const HIM_SPEED = MOVE_SPEED * 0.65 // slower than the player, so they're chaseable
 const HIM_TURN_CHANCE = 0.35 // odds of turning at a pass-through intersection instead of continuing straight
+const CATCH_RADIUS = 22 // how close the player must get to him to trigger the escort to church
+const ESCORT_TRAIL_OFFSET = 18 // how far behind the player him trails during the escort
 
 interface HimMoveState {
   x: number
@@ -44,6 +46,9 @@ interface HimMoveState {
 }
 
 const HIM_ROWS = [ROAD1_Y, ROAD2_Y, ROAD3_Y]
+
+const CHURCH_BUILDING = BUILDINGS.find((building) => building.id === 'tjsp')!
+const CHURCH_DOOR = doorPoint(CHURCH_BUILDING)
 
 function isOnHorizontalRoad(y: number): boolean {
   return HIM_ROWS.some((rowY) => Math.abs(y - rowY) <= ROAD_HALF_WIDTH)
@@ -55,6 +60,18 @@ function clamp(value: number, min: number, max: number) {
 
 function formatToday() {
   return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// Builds a simple road-following route from any point on the grid to the
+// church door: over to the vertical connector, up/down to road 1, across to
+// the church, then down its spur to the door.
+function buildPathToChurch(start: Point): Point[] {
+  const path: Point[] = []
+  if (Math.abs(start.x - VERTICAL_ROAD_X) > 1) path.push({ x: VERTICAL_ROAD_X, y: start.y })
+  if (Math.abs(start.y - ROAD1_Y) > 1) path.push({ x: VERTICAL_ROAD_X, y: ROAD1_Y })
+  path.push({ x: CHURCH_DOOR.x, y: ROAD1_Y })
+  path.push(CHURCH_DOOR)
+  return path
 }
 
 export default function TownMap() {
@@ -69,6 +86,8 @@ export default function TownMap() {
   const [him, setHim] = useState<Point>({ x: ROAD_X1, y: ROAD2_Y })
   const [himFacingLeft, setHimFacingLeft] = useState(false)
   const [himWalkFrame, setHimWalkFrame] = useState(0)
+  const [himVisible, setHimVisible] = useState(true)
+  const [isEscorting, setIsEscorting] = useState(false)
   const today = formatToday()
 
   const pressedKeys = useRef(new Set<string>())
@@ -78,7 +97,13 @@ export default function TownMap() {
   const walkFrameCounterRef = useRef(0)
   const himMoveRef = useRef<HimMoveState>({ x: ROAD_X1, y: ROAD2_Y, axis: 'horizontal', sign: 1 })
   const himWalkFrameCounterRef = useRef(0)
+  const himVisibleRef = useRef(true)
+  const isEscortingRef = useRef(false)
+  const escortPathRef = useRef<Point[]>([])
+  const escortIndexRef = useRef(0)
   playerRef.current = player
+  himVisibleRef.current = himVisible
+  isEscortingRef.current = isEscorting
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -108,6 +133,54 @@ export default function TownMap() {
       if (lastTimeRef.current === null) lastTimeRef.current = time
       const dt = (time - lastTimeRef.current) / 1000
       lastTimeRef.current = time
+
+      if (isEscortingRef.current) {
+        const path = escortPathRef.current
+        const idx = escortIndexRef.current
+        const current = playerRef.current
+
+        if (idx >= path.length) {
+          // Arrived: separate, hide him, and hand control back to the player.
+          setIsEscorting(false)
+          isEscortingRef.current = false
+          setHimVisible(false)
+          himVisibleRef.current = false
+          setIsMoving(false)
+          pressedKeys.current.clear()
+        } else {
+          const target = path[idx]
+          const tdx = target.x - current.x
+          const tdy = target.y - current.y
+          const tdist = Math.hypot(tdx, tdy)
+
+          if (tdist < 2) {
+            escortIndexRef.current = idx + 1
+          } else {
+            const travel = Math.min(HIM_SPEED * dt, tdist)
+            const dirX = tdx / tdist
+            const dirY = tdy / tdist
+            const nextPlayer = { x: current.x + dirX * travel, y: current.y + dirY * travel }
+            setPlayer(nextPlayer)
+            playerRef.current = nextPlayer
+            if (dirX !== 0) {
+              setFacingLeft(dirX < 0)
+              setHimFacingLeft(dirX < 0)
+            }
+            setHim({ x: nextPlayer.x - dirX * ESCORT_TRAIL_OFFSET, y: nextPlayer.y - dirY * ESCORT_TRAIL_OFFSET })
+            setIsMoving(true)
+
+            walkFrameCounterRef.current += 1
+            if (walkFrameCounterRef.current >= WALK_FRAME_SKIP) {
+              walkFrameCounterRef.current = 0
+              setWalkFrame((f) => (f === 0 ? 1 : 0))
+              setHimWalkFrame((f) => (f === 0 ? 1 : 0))
+            }
+          }
+        }
+
+        frameRef.current = requestAnimationFrame(step)
+        return
+      }
 
       if (!modalBuilding) {
         const keys = pressedKeys.current
@@ -171,63 +244,76 @@ export default function TownMap() {
       // Background NPC: follows the trunk roads, turning at intersections,
       // always turning (not wrapping) at the vertical road's dead ends, and
       // wrapping around to the opposite end when a horizontal road ends.
-      const himState = himMoveRef.current
-      let nextHimState: HimMoveState
+      if (himVisibleRef.current) {
+        const himState = himMoveRef.current
+        let nextHimState: HimMoveState
 
-      if (himState.axis === 'horizontal') {
-        const rawX = himState.x + himState.sign * HIM_SPEED * dt
-        const crossedIntersection =
-          himState.x !== VERTICAL_ROAD_X && (himState.x - VERTICAL_ROAD_X) * (rawX - VERTICAL_ROAD_X) <= 0
+        if (himState.axis === 'horizontal') {
+          const rawX = himState.x + himState.sign * HIM_SPEED * dt
+          const crossedIntersection =
+            himState.x !== VERTICAL_ROAD_X && (himState.x - VERTICAL_ROAD_X) * (rawX - VERTICAL_ROAD_X) <= 0
 
-        if (crossedIntersection && Math.random() < HIM_TURN_CHANCE) {
-          const sign: 1 | -1 =
-            himState.y === ROAD1_Y ? 1 : himState.y === ROAD3_Y ? -1 : Math.random() < 0.5 ? 1 : -1
-          nextHimState = { x: VERTICAL_ROAD_X, y: himState.y, axis: 'vertical', sign }
-        } else if (rawX > ROAD_X2) {
-          nextHimState = { x: ROAD_X1, y: himState.y, axis: 'horizontal', sign: himState.sign }
-        } else if (rawX < ROAD_X1) {
-          nextHimState = { x: ROAD_X2, y: himState.y, axis: 'horizontal', sign: himState.sign }
-        } else {
-          nextHimState = { x: rawX, y: himState.y, axis: 'horizontal', sign: himState.sign }
-        }
-      } else {
-        const rawY = himState.y + himState.sign * HIM_SPEED * dt
-        const reachedTopEnd = himState.sign === -1 && rawY <= ROAD1_Y
-        const reachedBottomEnd = himState.sign === 1 && rawY >= ROAD3_Y
-
-        if (reachedTopEnd || reachedBottomEnd) {
-          // Dead end of the connector road: always turn onto the horizontal road here.
-          const endY = reachedTopEnd ? ROAD1_Y : ROAD3_Y
-          nextHimState = {
-            x: VERTICAL_ROAD_X,
-            y: endY,
-            axis: 'horizontal',
-            sign: Math.random() < 0.5 ? 1 : -1,
+          if (crossedIntersection && Math.random() < HIM_TURN_CHANCE) {
+            const sign: 1 | -1 =
+              himState.y === ROAD1_Y ? 1 : himState.y === ROAD3_Y ? -1 : Math.random() < 0.5 ? 1 : -1
+            nextHimState = { x: VERTICAL_ROAD_X, y: himState.y, axis: 'vertical', sign }
+          } else if (rawX > ROAD_X2) {
+            nextHimState = { x: ROAD_X1, y: himState.y, axis: 'horizontal', sign: himState.sign }
+          } else if (rawX < ROAD_X1) {
+            nextHimState = { x: ROAD_X2, y: himState.y, axis: 'horizontal', sign: himState.sign }
+          } else {
+            nextHimState = { x: rawX, y: himState.y, axis: 'horizontal', sign: himState.sign }
           }
         } else {
-          const crossedMidRow =
-            himState.y !== ROAD2_Y && (himState.y - ROAD2_Y) * (rawY - ROAD2_Y) <= 0
-          if (crossedMidRow && Math.random() < HIM_TURN_CHANCE) {
+          const rawY = himState.y + himState.sign * HIM_SPEED * dt
+          const reachedTopEnd = himState.sign === -1 && rawY <= ROAD1_Y
+          const reachedBottomEnd = himState.sign === 1 && rawY >= ROAD3_Y
+
+          if (reachedTopEnd || reachedBottomEnd) {
+            // Dead end of the connector road: always turn onto the horizontal road here.
+            const endY = reachedTopEnd ? ROAD1_Y : ROAD3_Y
             nextHimState = {
               x: VERTICAL_ROAD_X,
-              y: ROAD2_Y,
+              y: endY,
               axis: 'horizontal',
               sign: Math.random() < 0.5 ? 1 : -1,
             }
           } else {
-            nextHimState = { x: VERTICAL_ROAD_X, y: rawY, axis: 'vertical', sign: himState.sign }
+            const crossedMidRow =
+              himState.y !== ROAD2_Y && (himState.y - ROAD2_Y) * (rawY - ROAD2_Y) <= 0
+            if (crossedMidRow && Math.random() < HIM_TURN_CHANCE) {
+              nextHimState = {
+                x: VERTICAL_ROAD_X,
+                y: ROAD2_Y,
+                axis: 'horizontal',
+                sign: Math.random() < 0.5 ? 1 : -1,
+              }
+            } else {
+              nextHimState = { x: VERTICAL_ROAD_X, y: rawY, axis: 'vertical', sign: himState.sign }
+            }
           }
         }
-      }
 
-      himMoveRef.current = nextHimState
-      setHim({ x: nextHimState.x, y: nextHimState.y })
-      if (nextHimState.axis === 'horizontal') setHimFacingLeft(nextHimState.sign < 0)
+        himMoveRef.current = nextHimState
+        setHim({ x: nextHimState.x, y: nextHimState.y })
+        if (nextHimState.axis === 'horizontal') setHimFacingLeft(nextHimState.sign < 0)
 
-      himWalkFrameCounterRef.current += 1
-      if (himWalkFrameCounterRef.current >= WALK_FRAME_SKIP) {
-        himWalkFrameCounterRef.current = 0
-        setHimWalkFrame((f) => (f === 0 ? 1 : 0))
+        himWalkFrameCounterRef.current += 1
+        if (himWalkFrameCounterRef.current >= WALK_FRAME_SKIP) {
+          himWalkFrameCounterRef.current = 0
+          setHimWalkFrame((f) => (f === 0 ? 1 : 0))
+        }
+
+        // Catch detection: if the player reaches him, start the escort to church.
+        const current = playerRef.current
+        const caughtDist = Math.hypot(current.x - nextHimState.x, current.y - nextHimState.y)
+        if (!modalBuilding && caughtDist < CATCH_RADIUS) {
+          escortPathRef.current = buildPathToChurch(current)
+          escortIndexRef.current = 0
+          setIsEscorting(true)
+          isEscortingRef.current = true
+          pressedKeys.current.clear()
+        }
       }
 
       frameRef.current = requestAnimationFrame(step)
@@ -240,6 +326,7 @@ export default function TownMap() {
     let closest: Building | null = null
     let closestDist = Infinity
     for (const building of BUILDINGS) {
+      if (building.noStop) continue
       const door = doorPoint(building)
       const dist = Math.hypot(player.x - door.x, player.y - door.y)
       if (dist < DOOR_TRIGGER_RADIUS && dist < closestDist) {
@@ -285,7 +372,7 @@ export default function TownMap() {
             />
           ))}
 
-          {BUILDINGS.map((building) => {
+          {BUILDINGS.filter((building) => !building.noStop).map((building) => {
             const door = doorPoint(building)
             return (
               <g
@@ -302,16 +389,20 @@ export default function TownMap() {
             )
           })}
 
-          <ellipse cx={him.x} cy={him.y + HIM_HEIGHT / 2 - 4} rx={11} ry={5} className="player-shadow" />
-          <image
-            href={himSpriteSrc}
-            x={him.x - HIM_WIDTH / 2}
-            y={him.y - HIM_HEIGHT / 2}
-            width={HIM_WIDTH}
-            height={HIM_HEIGHT}
-            transform={himShouldMirror ? `scale(-1 1) translate(${-2 * him.x} 0)` : undefined}
-            className="player-sprite"
-          />
+          {himVisible && (
+            <>
+              <ellipse cx={him.x} cy={him.y + HIM_HEIGHT / 2 - 4} rx={11} ry={5} className="player-shadow" />
+              <image
+                href={himSpriteSrc}
+                x={him.x - HIM_WIDTH / 2}
+                y={him.y - HIM_HEIGHT / 2}
+                width={HIM_WIDTH}
+                height={HIM_HEIGHT}
+                transform={himShouldMirror ? `scale(-1 1) translate(${-2 * him.x} 0)` : undefined}
+                className="player-sprite"
+              />
+            </>
+          )}
 
           <ellipse cx={player.x} cy={player.y + PLAYER_HEIGHT / 2 - 4} rx={12} ry={5} className="player-shadow" />
           <image

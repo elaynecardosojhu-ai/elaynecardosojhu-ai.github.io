@@ -35,7 +35,10 @@ const ROW_TRUNK_Y: Record<number, number> = {
 }
 
 export function doorPoint(building: Building): Point {
-  return { x: building.x + building.width / 2, y: building.y + building.height + 10 }
+  return {
+    x: building.x + building.width / 2 + (building.doorOffsetX ?? 0),
+    y: building.y + building.height + 10,
+  }
 }
 
 export const ROAD_SEGMENTS: RoadSegment[] = [
