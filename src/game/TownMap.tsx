@@ -194,14 +194,14 @@ const STAT_TICK_MS = 400
 // through doesn't pick it up by accident.
 const PICKUP_DWELL_MS = 450
 
-// Health decays continuously (a bit faster than the other stats' full decay
-// window) until it's topped back up at the gym, supermarket or hospital.
+// Health decays continuously, at the same rate as the other stats' decay
+// window, until it's topped back up at the gym, supermarket or hospital.
 // Icons appear once it drops past these thresholds.
 const HEALTH_MAX = 100
 const HEALTH_MIN = 0
 const HEALTH_MIDDLE = 50 // below this, a gym/supermarket icon appears
 const HEALTH_CRITICAL = 20 // below this, neglect forces a hospital visit
-const HEALTH_DECAY_DURATION_MS = 11000 // faster than STAT_DECAY_DURATION_MS
+const HEALTH_DECAY_DURATION_MS = STAT_DECAY_DURATION_MS
 // Being sick (hospital icon active, uncollected) slows the player down a lot.
 const SICK_SPEED_MULTIPLIER = 0.35
 
