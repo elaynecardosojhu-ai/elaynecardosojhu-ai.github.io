@@ -9,7 +9,7 @@ import himWalk2 from '../assets/characters/him-walk-2.png'
 import dog1Sprite from '../assets/characters/dog-1.png'
 import dog2Sprite from '../assets/characters/dog-2.png'
 import catSprite from '../assets/characters/cat-2.png'
-import meMoto from '../assets/characters/me-moto.png'
+import mePat from '../assets/characters/me-pat.png'
 import meCar from '../assets/characters/me-car.png'
 import hatSprite from '../assets/characters/grad-hat.png'
 import diplomaSprite from '../assets/characters/grad-diploma.png'
@@ -202,7 +202,7 @@ const HEALTH_MAX = 100
 const HEALTH_MIN = 0
 const HEALTH_MIDDLE = 75 // below this (still pretty healthy), a gym/supermarket icon appears
 const HEALTH_CRITICAL = 25 // below this, neglect forces a hospital visit
-const HEALTH_DECAY_DURATION_MS = STAT_DECAY_DURATION_MS * 1.4
+const HEALTH_DECAY_DURATION_MS = STAT_DECAY_DURATION_MS * 2
 // Being sick (hospital icon active, uncollected) slows the player down a lot.
 const SICK_SPEED_MULTIPLIER = 0.35
 
@@ -214,6 +214,12 @@ const JOB_EMOJIS = ['🪙', '🌱', '💪', '🌱', '📈', '🪙', '💪', '�
 const MONEY_EMOJIS = ['🤑', '🪙', '💵', '👏', '🤑', '💵', '🪙', '👏']
 const TRAVEL_EMOJIS = ['🎓', '✈️', '🌍', '🧳', '😁', '☀️', '💖', '🤩']
 const DIPLOMA_EMOJIS = ['🎓', '😁', '📜', '👩‍🎓', '🤩']
+// The endgame loop: once the final job appears, a research icon at Unicamp
+// and a curiosity icon at the airport keep reappearing indefinitely (no
+// money reward -- just something to keep doing, alongside health upkeep).
+const RESEARCH_EMOJIS = ['🤔', '🎉', '🏆', '📖', '🔖', '🤓']
+const AIRPORT_LOOP_EMOJIS = ['⁉️', '🤔', '⏳', '🥱', '👀']
+const FINAL_LOOP_REAPPEAR_MS = 6000
 const GYM_EMOJIS = ['💪', '🏋️‍♂️', '🥰', '💪', '🏋️‍♂️', '🥰']
 const SUPERMARKET_EMOJIS = ['🍎', '🍓', '🍍', '🍒', '🌱', '🌻']
 const HOSPITAL_EMOJIS = ['🤒', '🤢', '🤮', '🤧', '😷']
@@ -329,6 +335,8 @@ export default function TownMap() {
   const [educationStat, setEducationStat] = useState(BASE_EDUCATION)
   const [healthStat, setHealthStat] = useState(HEALTH_MAX)
   const [healthIcon, setHealthIcon] = useState<'gym' | 'supermarket' | 'hospital' | null>(null)
+  const [researchAvailable, setResearchAvailable] = useState(false)
+  const [airportLoopAvailable, setAirportLoopAvailable] = useState(false)
   const [explorationStat, setExplorationStat] = useState(
     TOTAL_STOPS > 0 ? Math.round((visited.size / TOTAL_STOPS) * 100) : 0,
   )
@@ -388,6 +396,11 @@ export default function TownMap() {
   const healthRef = useRef(HEALTH_MAX)
   const healthIconRef = useRef<'gym' | 'supermarket' | 'hospital' | null>(null)
   const healthTurnRef = useRef<'gym' | 'supermarket'>('gym')
+  const researchAvailableRef = useRef(false)
+  const researchReappearTimeoutRef = useRef<number | null>(null)
+  const airportLoopAvailableRef = useRef(false)
+  const airportLoopReappearTimeoutRef = useRef<number | null>(null)
+  const carImageReadyRef = useRef(false)
   const himPhaseRef = useRef<'before-church' | 'after-church' | 'reunited' | 'done'>('before-church')
   const companionsRef = useRef<CompanionState[]>(companions)
   const companionsSpawnedRef = useRef(false)
@@ -430,14 +443,39 @@ export default function TownMap() {
     motoRevertTimeoutRef.current = window.setTimeout(() => setMotoActive(false), MOTO_RIDE_DURATION_MS)
   }
 
-  // Preload the car sprite well ahead of when it's actually needed, so the
-  // very first time hasCar flips true the browser already has it decoded --
-  // otherwise the vehicle box resizes to the car's larger dimensions a frame
-  // or two before the new image has loaded, making the old sprite flash at
-  // the bigger size before the car art actually appears.
+  // Flips hasCar on, but only once the car art is actually decoded and ready
+  // to paint -- so the sprite box never resizes to the car's dimensions a
+  // frame or two before the car image itself is ready to be shown.
+  function unlockCar() {
+    const activate = () => {
+      hasCarRef.current = true
+      setHasCar(true)
+    }
+    if (carImageReadyRef.current) {
+      activate()
+      return
+    }
+    const img = new Image()
+    img.src = meCar
+    img
+      .decode()
+      .then(activate)
+      .catch(activate)
+  }
+
+  // Preload (and decode) the car sprite well ahead of time, so by the time
+  // the player actually earns it, unlockCar() can flip the flag immediately.
   useEffect(() => {
-    const preload = new Image()
-    preload.src = meCar
+    const img = new Image()
+    img.src = meCar
+    img
+      .decode()
+      .then(() => {
+        carImageReadyRef.current = true
+      })
+      .catch(() => {
+        carImageReadyRef.current = true
+      })
   }, [])
 
   useEffect(() => {
@@ -810,8 +848,7 @@ export default function TownMap() {
           setMoneyCollectCount(moneyCollectCountRef.current)
           triggerCelebration(MONEY_EMOJIS, BANK_DOOR)
           if (collectedJobsRef.current.has(SECOND_JOB_ID)) {
-            hasCarRef.current = true
-            setHasCar(true)
+            unlockCar()
           }
           startMotoRide()
         }
@@ -919,6 +956,22 @@ export default function TownMap() {
         setJob2Available(true)
       }
 
+      // Endgame phase begins the moment the final job appears: the research
+      // and curiosity icons start their perpetual loop (health upkeep is
+      // gated on the same flag, over in the stat tick effect below).
+      if (job2AvailableRef.current && !researchAvailableRef.current && researchReappearTimeoutRef.current === null) {
+        researchAvailableRef.current = true
+        setResearchAvailable(true)
+      }
+      if (
+        job2AvailableRef.current &&
+        !airportLoopAvailableRef.current &&
+        airportLoopReappearTimeoutRef.current === null
+      ) {
+        airportLoopAvailableRef.current = true
+        setAirportLoopAvailable(true)
+      }
+
       // Second job offer, in front of Unicamp, available once the player
       // reappears after the second flight AND every other job has been taken:
       // collecting it triggers the usual job celebration and replenishes the
@@ -958,6 +1011,41 @@ export default function TownMap() {
           diplomaCollectedRef.current = true
           setDiplomaCollected(true)
           triggerCelebration(DIPLOMA_EMOJIS, HOUSE_DOOR)
+        }
+      }
+
+      // Research icon at Unicamp, part of the endgame loop: no money reward,
+      // just collect-and-reappear indefinitely once the final job has shown up.
+      if (!modalBuilding && !isEscortingRef.current && !playerHiddenRef.current && researchAvailableRef.current) {
+        const current = playerRef.current
+        const dist = Math.hypot(current.x - UNICAMP_DOOR.x, current.y - UNICAMP_DOOR.y)
+        if (dwellReady('research', dist < CATCH_RADIUS, dt)) {
+          researchAvailableRef.current = false
+          setResearchAvailable(false)
+          triggerCelebration(RESEARCH_EMOJIS, UNICAMP_DOOR)
+          if (researchReappearTimeoutRef.current !== null) window.clearTimeout(researchReappearTimeoutRef.current)
+          researchReappearTimeoutRef.current = window.setTimeout(() => {
+            researchReappearTimeoutRef.current = null
+            researchAvailableRef.current = true
+            setResearchAvailable(true)
+          }, FINAL_LOOP_REAPPEAR_MS)
+        }
+      }
+
+      // Curiosity icon at the airport, the other half of the endgame loop.
+      if (!modalBuilding && !isEscortingRef.current && !playerHiddenRef.current && airportLoopAvailableRef.current) {
+        const current = playerRef.current
+        const dist = Math.hypot(current.x - AIRPORT_DOOR.x, current.y - AIRPORT_DOOR.y)
+        if (dwellReady('airport-loop', dist < CATCH_RADIUS, dt)) {
+          airportLoopAvailableRef.current = false
+          setAirportLoopAvailable(false)
+          triggerCelebration(AIRPORT_LOOP_EMOJIS, AIRPORT_DOOR)
+          if (airportLoopReappearTimeoutRef.current !== null) window.clearTimeout(airportLoopReappearTimeoutRef.current)
+          airportLoopReappearTimeoutRef.current = window.setTimeout(() => {
+            airportLoopReappearTimeoutRef.current = null
+            airportLoopAvailableRef.current = true
+            setAirportLoopAvailable(true)
+          }, FINAL_LOOP_REAPPEAR_MS)
         }
       }
 
@@ -1030,6 +1118,8 @@ export default function TownMap() {
       if (hat2AppearTimeoutRef.current !== null) window.clearTimeout(hat2AppearTimeoutRef.current)
       if (passport2AppearTimeoutRef.current !== null) window.clearTimeout(passport2AppearTimeoutRef.current)
       if (playerHiddenTimeoutRef.current !== null) window.clearTimeout(playerHiddenTimeoutRef.current)
+      if (researchReappearTimeoutRef.current !== null) window.clearTimeout(researchReappearTimeoutRef.current)
+      if (airportLoopReappearTimeoutRef.current !== null) window.clearTimeout(airportLoopReappearTimeoutRef.current)
     }
   }, [])
 
@@ -1092,7 +1182,7 @@ export default function TownMap() {
   const spriteSrc = motoActive
     ? hasCar
       ? meCar
-      : meMoto
+      : mePat
     : isMoving
       ? walkFrame === 0
         ? meWalk
@@ -1278,6 +1368,18 @@ export default function TownMap() {
           {healthIcon === 'hospital' && (
             <text x={HOSPITAL_DOOR.x} y={HOSPITAL_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
               🩺
+            </text>
+          )}
+
+          {researchAvailable && (
+            <text x={UNICAMP_DOOR.x} y={UNICAMP_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
+              🔬
+            </text>
+          )}
+
+          {airportLoopAvailable && (
+            <text x={AIRPORT_DOOR.x} y={AIRPORT_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
+              🔍
             </text>
           )}
 
