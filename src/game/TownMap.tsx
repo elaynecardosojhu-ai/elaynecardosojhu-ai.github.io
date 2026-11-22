@@ -1394,7 +1394,7 @@ export default function TownMap() {
             />
           )}
 
-          {diplomaAvailable && !diplomaCollected && (
+          {diplomaAvailable && !diplomaCollected && !loveAvailable && (
             <image
               href={diplomaSprite}
               x={HOUSE_DOOR.x - PICKUP_WIDTH / 2}
@@ -1436,7 +1436,7 @@ export default function TownMap() {
           )}
 
           {loveAvailable && (
-            <text x={HOUSE_DOOR.x + 22} y={HOUSE_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
+            <text x={HOUSE_DOOR.x} y={HOUSE_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
               💖
             </text>
           )}
