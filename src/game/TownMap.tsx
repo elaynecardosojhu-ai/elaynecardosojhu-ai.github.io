@@ -86,7 +86,6 @@ const JOB_DOORS: Record<string, Point> = Object.fromEntries(
 
 // A second, later job offer appears in front of Unicamp once the second
 // flight has happened, reusing the same collected-jobs/money-at-bank system.
-const SECOND_JOB_ID = 'unicamp-second-job'
 
 // How long the player needs to be moving around before "him" shows up, so
 // there's a moment to get oriented first.
@@ -330,9 +329,9 @@ export default function TownMap() {
   const [hat2Collected, setHat2Collected] = useState(false)
   const [passport2Available, setPassport2Available] = useState(false)
   const [passport2Collected, setPassport2Collected] = useState(false)
-  const [job2Available, setJob2Available] = useState(false)
   const [playerHidden, setPlayerHidden] = useState(false)
   const [hasCar, setHasCar] = useState(false)
+  const [divorceDone, setDivorceDone] = useState(false)
   const [happinessStat, setHappinessStat] = useState(BASE_HAPPINESS)
   const [educationStat, setEducationStat] = useState(BASE_EDUCATION)
   const [healthStat, setHealthStat] = useState(HEALTH_MAX)
@@ -383,8 +382,6 @@ export default function TownMap() {
   const passport2AppearScheduledRef = useRef(false)
   const passport2AppearTimeoutRef = useRef<number | null>(null)
   const passport2CollectedRef = useRef(false)
-  const job2SequenceReadyRef = useRef(false)
-  const job2AvailableRef = useRef(false)
   const playerHiddenRef = useRef(false)
   const playerHiddenTimeoutRef = useRef<number | null>(null)
   const hasCarRef = useRef(false)
@@ -530,6 +527,7 @@ export default function TownMap() {
               himVisibleRef.current = false
               triggerCelebration(BREAKUP_EMOJIS, current)
               himPhaseRef.current = 'done'
+              setDivorceDone(true)
               // After the divorce, happiness rebounds to the top and slowly settles back down.
               spikeStat(happinessSpikeRef)
             }
@@ -799,7 +797,9 @@ export default function TownMap() {
           triggerCelebration(GRADUATION_EMOJIS, UNICAMP_DOOR)
           spikeStat(educationSpikeRef)
           diplomaAvailableRef.current = true
+          diplomaCollectedRef.current = false
           setDiplomaAvailable(true)
+          setDiplomaCollected(false)
           if (!passportAppearScheduledRef.current) {
             passportAppearScheduledRef.current = true
             passportAppearTimeoutRef.current = window.setTimeout(() => {
@@ -829,11 +829,10 @@ export default function TownMap() {
         }
       }
 
-      // Money pickup in front of the bank: appears after each job taken (even
-      // replenishing after being collected, as long as another job has since
-      // been taken), and triggers its own celebration when collected. Taking
-      // it syncs the collected count fully, so an unpicked-up money never
-      // stacks -- the next one simply replaces it.
+      // Money pickup in front of the bank: appears after each of the three
+      // jobs is taken, and triggers its own celebration when collected.
+      // Money 1 -> scooter (me-pat), money 2 -> motorcycle (me-moto), money 3
+      // (the last job) -> unlocks the car for good.
       if (
         !modalBuilding &&
         !isEscortingRef.current &&
@@ -846,7 +845,7 @@ export default function TownMap() {
           moneyCollectCountRef.current = collectedJobsRef.current.size
           setMoneyCollectCount(moneyCollectCountRef.current)
           triggerCelebration(MONEY_EMOJIS, BANK_DOOR)
-          if (collectedJobsRef.current.has(SECOND_JOB_ID)) {
+          if (moneyCollectCountRef.current >= JOB_BUILDING_IDS.length) {
             unlockCar()
           }
           startMotoRide()
@@ -871,7 +870,9 @@ export default function TownMap() {
           triggerCelebration(TRAVEL_EMOJIS, AIRPORT_DOOR)
           spikeStat(explorationSpikeRef)
           diplomaAvailableRef.current = true
+          diplomaCollectedRef.current = false
           setDiplomaAvailable(true)
+          setDiplomaCollected(false)
           if (!hat2AppearScheduledRef.current) {
             hat2AppearScheduledRef.current = true
             hat2AppearTimeoutRef.current = window.setTimeout(() => {
@@ -900,7 +901,9 @@ export default function TownMap() {
           triggerCelebration(GRADUATION_EMOJIS, UNICAMP_DOOR)
           spikeStat(educationSpikeRef)
           diplomaAvailableRef.current = true
+          diplomaCollectedRef.current = false
           setDiplomaAvailable(true)
+          setDiplomaCollected(false)
           if (!passport2AppearScheduledRef.current) {
             passport2AppearScheduledRef.current = true
             passport2AppearTimeoutRef.current = window.setTimeout(() => {
@@ -913,8 +916,8 @@ export default function TownMap() {
 
       // Second passport, at the airport again, available a while after the
       // second graduation: collecting it triggers a travel celebration, then
-      // the player vanishes from the map briefly before the diploma (if not
-      // already out) and the new job offer appear.
+      // the player vanishes from the map briefly before the diploma reappears
+      // and the endgame phase (health upkeep + research/curiosity loop) begins.
       if (
         !modalBuilding &&
         !isEscortingRef.current &&
@@ -936,51 +939,17 @@ export default function TownMap() {
             playerHiddenRef.current = false
             setPlayerHidden(false)
             diplomaAvailableRef.current = true
+            diplomaCollectedRef.current = false
             setDiplomaAvailable(true)
-            job2SequenceReadyRef.current = true
+            setDiplomaCollected(false)
           }, PLAYER_DISAPPEAR_DURATION_MS)
         }
       }
 
-      // The second job offer only actually appears once every other job
-      // (TJSP, Elite School, Kenlo Software) has already been taken -- so if
-      // the player reappears from the second flight before finishing those,
-      // it waits until the last of them is collected before showing up.
-      if (
-        !job2AvailableRef.current &&
-        job2SequenceReadyRef.current &&
-        JOB_BUILDING_IDS.every((id) => collectedJobsRef.current.has(id))
-      ) {
-        job2AvailableRef.current = true
-        setJob2Available(true)
-      }
-
-      // Second job offer, in front of Unicamp, available once the player
-      // reappears after the second flight AND every other job has been taken:
-      // collecting it triggers the usual job celebration and replenishes the
-      // money pickup at the bank.
-      if (
-        !modalBuilding &&
-        !isEscortingRef.current &&
-        !playerHiddenRef.current &&
-        job2AvailableRef.current &&
-        !collectedJobsRef.current.has(SECOND_JOB_ID)
-      ) {
-        const current = playerRef.current
-        const dist = Math.hypot(current.x - UNICAMP_DOOR.x, current.y - UNICAMP_DOOR.y)
-        if (dwellReady('job2', dist < CATCH_RADIUS, dt)) {
-          const next = new Set(collectedJobsRef.current)
-          next.add(SECOND_JOB_ID)
-          collectedJobsRef.current = next
-          setCollectedJobs(next)
-          triggerCelebration(JOB_EMOJIS, UNICAMP_DOOR)
-        }
-      }
-
-      // Diploma pickup in front of the house, available after any graduation
-      // or flight: collecting it triggers its own celebration. If a diploma
-      // isn't picked up before the next graduation/flight, it just stays put
-      // (there's only ever one diploma marker, so there's nothing to replace).
+      // Diploma pickup in front of the house, available after every
+      // graduation and every flight: collecting it triggers its own
+      // celebration, and each new graduation/flight makes it collectible
+      // again (it's not a one-time pickup).
       if (
         !modalBuilding &&
         !isEscortingRef.current &&
@@ -1113,10 +1082,10 @@ export default function TownMap() {
       )
       setExplorationStat(explorationValue)
 
-      // Endgame loop icons: once the final job has appeared, the research
+      // Endgame loop icons: once the second flight is done, the research
       // (education) and curiosity (exploration) icons pop up whenever their
       // stat dips below the middle of its bar.
-      if (job2AvailableRef.current) {
+      if (passport2CollectedRef.current) {
         if (!researchAvailableRef.current && educationValue < EDUCATION_MIDDLE) {
           researchAvailableRef.current = true
           setResearchAvailable(true)
@@ -1129,8 +1098,8 @@ export default function TownMap() {
 
       // Health decays continuously (unlike the spike-based stats above) and
       // drives its own upkeep icons at the gym/supermarket/hospital -- but
-      // only once the final job has appeared at Unicamp.
-      if (!job2AvailableRef.current) return
+      // only once the second flight is done.
+      if (!passport2CollectedRef.current) return
       const healthStep = (HEALTH_MAX - HEALTH_MIN) * (STAT_TICK_MS / HEALTH_DECAY_DURATION_MS)
       healthRef.current = clamp(healthRef.current - healthStep, HEALTH_MIN, HEALTH_MAX)
       if (healthIconRef.current === null && healthRef.current < HEALTH_MIDDLE) {
@@ -1198,6 +1167,9 @@ export default function TownMap() {
   function isPermanentlyDone(buildingId: string): boolean {
     switch (buildingId) {
       case 'tjsp':
+        // TJSP is also where the divorce happens -- the checkmark waits for
+        // that, not just for the job being taken.
+        return collectedJobs.has(buildingId) && divorceDone
       case 'elite-school':
       case 'kenlo-software':
         return collectedJobs.has(buildingId)
@@ -1324,12 +1296,6 @@ export default function TownMap() {
                 </text>
               )
             })}
-
-          {job2Available && !collectedJobs.has(SECOND_JOB_ID) && (
-            <text x={UNICAMP_DOOR.x} y={UNICAMP_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
-              👩‍💻
-            </text>
-          )}
 
           {collectedJobs.size > moneyCollectCount && (
             <text x={BANK_DOOR.x} y={BANK_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
