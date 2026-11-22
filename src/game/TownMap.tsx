@@ -373,6 +373,7 @@ export default function TownMap() {
   const passport2AppearScheduledRef = useRef(false)
   const passport2AppearTimeoutRef = useRef<number | null>(null)
   const passport2CollectedRef = useRef(false)
+  const job2SequenceReadyRef = useRef(false)
   const job2AvailableRef = useRef(false)
   const playerHiddenRef = useRef(false)
   const playerHiddenTimeoutRef = useRef<number | null>(null)
@@ -889,15 +890,28 @@ export default function TownMap() {
             setPlayerHidden(false)
             diplomaAvailableRef.current = true
             setDiplomaAvailable(true)
-            job2AvailableRef.current = true
-            setJob2Available(true)
+            job2SequenceReadyRef.current = true
           }, PLAYER_DISAPPEAR_DURATION_MS)
         }
       }
 
+      // The second job offer only actually appears once every other job
+      // (TJSP, Elite School, Kenlo Software) has already been taken -- so if
+      // the player reappears from the second flight before finishing those,
+      // it waits until the last of them is collected before showing up.
+      if (
+        !job2AvailableRef.current &&
+        job2SequenceReadyRef.current &&
+        JOB_BUILDING_IDS.every((id) => collectedJobsRef.current.has(id))
+      ) {
+        job2AvailableRef.current = true
+        setJob2Available(true)
+      }
+
       // Second job offer, in front of Unicamp, available once the player
-      // reappears after the second flight: collecting it triggers the usual
-      // job celebration and replenishes the money pickup at the bank.
+      // reappears after the second flight AND every other job has been taken:
+      // collecting it triggers the usual job celebration and replenishes the
+      // money pickup at the bank.
       if (
         !modalBuilding &&
         !isEscortingRef.current &&
@@ -1022,7 +1036,9 @@ export default function TownMap() {
       )
 
       // Health decays continuously (unlike the spike-based stats above) and
-      // drives its own upkeep icons at the gym/supermarket/hospital.
+      // drives its own upkeep icons at the gym/supermarket/hospital -- but
+      // only once the final job has appeared at Unicamp.
+      if (!job2AvailableRef.current) return
       const healthStep = (HEALTH_MAX - HEALTH_MIN) * (STAT_TICK_MS / HEALTH_DECAY_DURATION_MS)
       healthRef.current = clamp(healthRef.current - healthStep, HEALTH_MIN, HEALTH_MAX)
       if (healthIconRef.current === null && healthRef.current < HEALTH_MIDDLE) {
