@@ -33,8 +33,8 @@ const WALK_FRAME_SKIP = 10 // how many animation ticks to hold each leg pose bef
 
 const HIM_WIDTH = 26
 const HIM_HEIGHT = 38
-const HIM_SPEED = MOVE_SPEED // walks at the same pace/cadence as the player
-const HIM_TURN_CHANCE = 0.35 // odds of turning at an intersection instead of continuing straight
+const HIM_SPEED = MOVE_SPEED * 0.65 // slower than the player, so they're chaseable
+const HIM_TURN_CHANCE = 0.35 // odds of turning at a pass-through intersection instead of continuing straight
 
 interface HimMoveState {
   x: number
@@ -44,6 +44,10 @@ interface HimMoveState {
 }
 
 const HIM_ROWS = [ROAD1_Y, ROAD2_Y, ROAD3_Y]
+
+function isOnHorizontalRoad(y: number): boolean {
+  return HIM_ROWS.some((rowY) => Math.abs(y - rowY) <= ROAD_HALF_WIDTH)
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
@@ -120,7 +124,15 @@ export default function TownMap() {
           const stepY = (dy / length) * MOVE_SPEED * dt
 
           const current = playerRef.current
-          let nextX = clamp(current.x + stepX, PLAYER_RADIUS, MAP_WIDTH - PLAYER_RADIUS)
+          const rawX = current.x + stepX
+          let nextX: number
+          if (isOnHorizontalRoad(current.y) && rawX > ROAD_X2) {
+            nextX = ROAD_X1
+          } else if (isOnHorizontalRoad(current.y) && rawX < ROAD_X1) {
+            nextX = ROAD_X2
+          } else {
+            nextX = clamp(rawX, PLAYER_RADIUS, MAP_WIDTH - PLAYER_RADIUS)
+          }
           let nextY = current.y
           if (!isOnRoad({ x: nextX, y: nextY })) {
             nextX = current.x
@@ -156,8 +168,9 @@ export default function TownMap() {
         setIsMoving(false)
       }
 
-      // Background NPC: follows the trunk roads, turning at intersections and
-      // wrapping around to the opposite end when it reaches a road's end.
+      // Background NPC: follows the trunk roads, turning at intersections,
+      // always turning (not wrapping) at the vertical road's dead ends, and
+      // wrapping around to the opposite end when a horizontal road ends.
       const himState = himMoveRef.current
       let nextHimState: HimMoveState
 
@@ -167,36 +180,43 @@ export default function TownMap() {
           himState.x !== VERTICAL_ROAD_X && (himState.x - VERTICAL_ROAD_X) * (rawX - VERTICAL_ROAD_X) <= 0
 
         if (crossedIntersection && Math.random() < HIM_TURN_CHANCE) {
-          nextHimState = {
-            x: VERTICAL_ROAD_X,
-            y: himState.y,
-            axis: 'vertical',
-            sign: Math.random() < 0.5 ? 1 : -1,
-          }
+          const sign: 1 | -1 =
+            himState.y === ROAD1_Y ? 1 : himState.y === ROAD3_Y ? -1 : Math.random() < 0.5 ? 1 : -1
+          nextHimState = { x: VERTICAL_ROAD_X, y: himState.y, axis: 'vertical', sign }
+        } else if (rawX > ROAD_X2) {
+          nextHimState = { x: ROAD_X1, y: himState.y, axis: 'horizontal', sign: himState.sign }
+        } else if (rawX < ROAD_X1) {
+          nextHimState = { x: ROAD_X2, y: himState.y, axis: 'horizontal', sign: himState.sign }
         } else {
-          let wrappedX = rawX
-          if (wrappedX > ROAD_X2) wrappedX = ROAD_X1
-          if (wrappedX < ROAD_X1) wrappedX = ROAD_X2
-          nextHimState = { x: wrappedX, y: himState.y, axis: 'horizontal', sign: himState.sign }
+          nextHimState = { x: rawX, y: himState.y, axis: 'horizontal', sign: himState.sign }
         }
       } else {
         const rawY = himState.y + himState.sign * HIM_SPEED * dt
-        const crossedRow = HIM_ROWS.find(
-          (rowY) => himState.y !== rowY && (himState.y - rowY) * (rawY - rowY) <= 0,
-        )
+        const reachedTopEnd = himState.sign === -1 && rawY <= ROAD1_Y
+        const reachedBottomEnd = himState.sign === 1 && rawY >= ROAD3_Y
 
-        if (crossedRow !== undefined && Math.random() < HIM_TURN_CHANCE) {
+        if (reachedTopEnd || reachedBottomEnd) {
+          // Dead end of the connector road: always turn onto the horizontal road here.
+          const endY = reachedTopEnd ? ROAD1_Y : ROAD3_Y
           nextHimState = {
-            x: himState.x,
-            y: crossedRow,
+            x: VERTICAL_ROAD_X,
+            y: endY,
             axis: 'horizontal',
             sign: Math.random() < 0.5 ? 1 : -1,
           }
         } else {
-          let wrappedY = rawY
-          if (wrappedY > ROAD3_Y) wrappedY = ROAD1_Y
-          if (wrappedY < ROAD1_Y) wrappedY = ROAD3_Y
-          nextHimState = { x: himState.x, y: wrappedY, axis: 'vertical', sign: himState.sign }
+          const crossedMidRow =
+            himState.y !== ROAD2_Y && (himState.y - ROAD2_Y) * (rawY - ROAD2_Y) <= 0
+          if (crossedMidRow && Math.random() < HIM_TURN_CHANCE) {
+            nextHimState = {
+              x: VERTICAL_ROAD_X,
+              y: ROAD2_Y,
+              axis: 'horizontal',
+              sign: Math.random() < 0.5 ? 1 : -1,
+            }
+          } else {
+            nextHimState = { x: VERTICAL_ROAD_X, y: rawY, axis: 'vertical', sign: himState.sign }
+          }
         }
       }
 
