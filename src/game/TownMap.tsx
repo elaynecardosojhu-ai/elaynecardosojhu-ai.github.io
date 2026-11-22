@@ -4,14 +4,20 @@ import meFront from '../assets/characters/me-front.png'
 import meBack from '../assets/characters/me-back.png'
 import meWalk from '../assets/characters/me-walk.png'
 import meWalk2 from '../assets/characters/me-walk-2.png'
+import himWalk from '../assets/characters/him-walk.png'
+import himWalk2 from '../assets/characters/him-walk-2.png'
 import townBackground from '../assets/town-profile.jpg'
 import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, type Building } from './buildings'
 import {
   doorPoint,
   isOnRoad,
+  ROAD1_Y,
+  ROAD2_Y,
+  ROAD3_Y,
   ROAD_HALF_WIDTH,
   ROAD_SEGMENTS,
-  ROAD2_Y,
+  ROAD_X1,
+  ROAD_X2,
   VERTICAL_ROAD_X,
   type Point,
 } from './roads'
@@ -23,7 +29,20 @@ const PLAYER_WIDTH = 28
 const PLAYER_HEIGHT = 40
 const MOVE_SPEED = 170 // px per second
 const DOOR_TRIGGER_RADIUS = 46
-const WALK_FRAME_DURATION = 0.16 // seconds between leg-swap frames
+const WALK_FRAME_SKIP = 10 // how many animation ticks to hold each leg pose before swapping
+
+const HIM_WIDTH = 26
+const HIM_HEIGHT = 38
+const HIM_SPEED = 90 // px per second, a bit more relaxed than the player
+const HIM_ARRIVE_RADIUS = 6
+
+// Waypoints along the three trunk roads for the background NPC to wander
+// between (intersections and road ends only, never a building's spur).
+const HIM_WAYPOINTS: Point[] = [ROAD1_Y, ROAD2_Y, ROAD3_Y].flatMap((y) => [
+  { x: ROAD_X1, y },
+  { x: VERTICAL_ROAD_X, y },
+  { x: ROAD_X2, y },
+])
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
@@ -31,6 +50,11 @@ function clamp(value: number, min: number, max: number) {
 
 function formatToday() {
   return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function pickNextWaypoint(exclude: Point): Point {
+  const options = HIM_WAYPOINTS.filter((p) => p.x !== exclude.x || p.y !== exclude.y)
+  return options[Math.floor(Math.random() * options.length)]
 }
 
 export default function TownMap() {
@@ -42,14 +66,21 @@ export default function TownMap() {
   const [nearBuilding, setNearBuilding] = useState<Building | null>(null)
   const [modalBuilding, setModalBuilding] = useState<Building | null>(null)
   const [justVisited, setJustVisited] = useState(false)
+  const [him, setHim] = useState<Point>(() => pickNextWaypoint({ x: -1, y: -1 }))
+  const [himFacingLeft, setHimFacingLeft] = useState(false)
+  const [himWalkFrame, setHimWalkFrame] = useState(0)
   const today = formatToday()
 
   const pressedKeys = useRef(new Set<string>())
   const frameRef = useRef<number>(0)
   const lastTimeRef = useRef<number | null>(null)
   const playerRef = useRef(player)
-  const walkTimerRef = useRef(0)
+  const walkFrameCounterRef = useRef(0)
+  const himRef = useRef(him)
+  const himTargetRef = useRef<Point>(pickNextWaypoint(him))
+  const himWalkFrameCounterRef = useRef(0)
   playerRef.current = player
+  himRef.current = him
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -112,23 +143,46 @@ export default function TownMap() {
           }
 
           if (moved) {
-            walkTimerRef.current += dt
-            if (walkTimerRef.current >= WALK_FRAME_DURATION) {
-              walkTimerRef.current = 0
+            walkFrameCounterRef.current += 1
+            if (walkFrameCounterRef.current >= WALK_FRAME_SKIP) {
+              walkFrameCounterRef.current = 0
               setWalkFrame((f) => (f === 0 ? 1 : 0))
             }
             setIsMoving(true)
           } else {
-            walkTimerRef.current = 0
+            walkFrameCounterRef.current = 0
             setIsMoving(false)
           }
         } else {
-          walkTimerRef.current = 0
+          walkFrameCounterRef.current = 0
           setIsMoving(false)
         }
       } else {
-        walkTimerRef.current = 0
+        walkFrameCounterRef.current = 0
         setIsMoving(false)
+      }
+
+      // Background NPC: wanders between random waypoints on the trunk roads.
+      const himCurrent = himRef.current
+      const target = himTargetRef.current
+      const himDx = target.x - himCurrent.x
+      const himDy = target.y - himCurrent.y
+      const himDist = Math.hypot(himDx, himDy)
+
+      if (himDist < HIM_ARRIVE_RADIUS) {
+        himTargetRef.current = pickNextWaypoint(himCurrent)
+      } else {
+        const himStepX = (himDx / himDist) * HIM_SPEED * dt
+        const himStepY = (himDy / himDist) * HIM_SPEED * dt
+        const nextHim = { x: himCurrent.x + himStepX, y: himCurrent.y + himStepY }
+        setHim(nextHim)
+        if (himStepX !== 0) setHimFacingLeft(himStepX < 0)
+
+        himWalkFrameCounterRef.current += 1
+        if (himWalkFrameCounterRef.current >= WALK_FRAME_SKIP) {
+          himWalkFrameCounterRef.current = 0
+          setHimWalkFrame((f) => (f === 0 ? 1 : 0))
+        }
       }
 
       frameRef.current = requestAnimationFrame(step)
@@ -159,6 +213,8 @@ export default function TownMap() {
 
   const spriteSrc = isMoving ? (walkFrame === 0 ? meWalk : meWalk2) : nearBuilding ? meBack : meFront
   const shouldMirror = isMoving && facingLeft
+  const himSpriteSrc = himWalkFrame === 0 ? himWalk : himWalk2
+  const himShouldMirror = himFacingLeft
 
   return (
     <div className="town">
@@ -200,6 +256,17 @@ export default function TownMap() {
               </g>
             )
           })}
+
+          <ellipse cx={him.x} cy={him.y + HIM_HEIGHT / 2 - 4} rx={11} ry={5} className="player-shadow" />
+          <image
+            href={himSpriteSrc}
+            x={him.x - HIM_WIDTH / 2}
+            y={him.y - HIM_HEIGHT / 2}
+            width={HIM_WIDTH}
+            height={HIM_HEIGHT}
+            transform={himShouldMirror ? `scale(-1 1) translate(${-2 * him.x} 0)` : undefined}
+            className="player-sprite"
+          />
 
           <ellipse cx={player.x} cy={player.y + PLAYER_HEIGHT / 2 - 4} rx={12} ry={5} className="player-shadow" />
           <image
