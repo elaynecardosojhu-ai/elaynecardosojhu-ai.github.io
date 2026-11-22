@@ -6,10 +6,9 @@ import meWalk from '../assets/characters/me-walk.png'
 import meWalk2 from '../assets/characters/me-walk-2.png'
 import himWalk from '../assets/characters/him-walk.png'
 import himWalk2 from '../assets/characters/him-walk-2.png'
-import dogWalk from '../assets/characters/dog-1.png'
-import dogWalk2 from '../assets/characters/dog-2.png'
-import catWalk from '../assets/characters/cat-1.png'
-import catWalk2 from '../assets/characters/cat-2.png'
+import dog1Sprite from '../assets/characters/dog-1.png'
+import dog2Sprite from '../assets/characters/dog-2.png'
+import catSprite from '../assets/characters/cat-2.png'
 import townBackground from '../assets/town-profile.jpg'
 import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, type Building } from './buildings'
 import {
@@ -60,23 +59,32 @@ const TOTAL_STOPS = BUILDINGS.filter((building) => !building.noStop).length
 const COMPANION_WIDTH = 22
 const COMPANION_HEIGHT = 22
 
-type CompanionKind = 'dog' | 'cat'
-
 interface CompanionState {
   id: string
-  kind: CompanionKind
+  sprite: string
   x: number
   y: number
   visible: boolean
-  walkFrame: 0 | 1
+  home: boolean
   facingLeft: boolean
 }
 
+// Each companion is its own distinct pet (two different dogs + the grey
+// cat), so there's no walk-frame alternation -- just one static sprite each.
 const INITIAL_COMPANIONS: CompanionState[] = [
-  { id: 'dog-1', kind: 'dog', x: 0, y: 0, visible: false, walkFrame: 0, facingLeft: false },
-  { id: 'dog-2', kind: 'dog', x: 0, y: 0, visible: false, walkFrame: 0, facingLeft: false },
-  { id: 'cat-1', kind: 'cat', x: 0, y: 0, visible: false, walkFrame: 0, facingLeft: false },
+  { id: 'dog-1', sprite: dog1Sprite, x: 0, y: 0, visible: false, home: false, facingLeft: false },
+  { id: 'dog-2', sprite: dog2Sprite, x: 0, y: 0, visible: false, home: false, facingLeft: false },
+  { id: 'cat-2', sprite: catSprite, x: 0, y: 0, visible: false, home: false, facingLeft: false },
 ]
+
+// Fixed front-yard spots just below the house door where rescued companions
+// settle in and stay, side by side.
+const COMPANION_HOME_SPOTS: Point[] = [
+  { x: HOUSE_DOOR.x - 22, y: HOUSE_DOOR.y + 14 },
+  { x: HOUSE_DOOR.x, y: HOUSE_DOOR.y + 14 },
+  { x: HOUSE_DOOR.x + 22, y: HOUSE_DOOR.y + 14 },
+]
+
 
 // Picks a random point somewhere on the road grid (trunk roads only, never
 // inside a building spur) so companions always spawn reachable by foot.
@@ -262,7 +270,11 @@ export default function TownMap() {
             }
           } else if (escortKindRef.current === 'companion' && escortCompanionIdRef.current) {
             const rescuedId = escortCompanionIdRef.current
-            setCompanions((prev) => prev.map((c) => (c.id === rescuedId ? { ...c, visible: false } : c)))
+            setCompanions((prev) => {
+              const homeIndex = prev.filter((c) => c.home).length
+              const spot = COMPANION_HOME_SPOTS[homeIndex] ?? COMPANION_HOME_SPOTS[COMPANION_HOME_SPOTS.length - 1]
+              return prev.map((c) => (c.id === rescuedId ? { ...c, x: spot.x, y: spot.y, home: true } : c))
+            })
           }
           setIsEscorting(false)
           isEscortingRef.current = false
@@ -308,11 +320,6 @@ export default function TownMap() {
               setWalkFrame((f) => (f === 0 ? 1 : 0))
               if (escortKindRef.current === 'him') {
                 setHimWalkFrame((f) => (f === 0 ? 1 : 0))
-              } else if (escortKindRef.current === 'companion' && escortCompanionIdRef.current) {
-                const id = escortCompanionIdRef.current
-                setCompanions((prev) =>
-                  prev.map((c) => (c.id === id ? { ...c, walkFrame: c.walkFrame === 0 ? 1 : 0 } : c)),
-                )
               }
             }
           }
@@ -462,7 +469,7 @@ export default function TownMap() {
       if (!modalBuilding && !isEscortingRef.current) {
         const current = playerRef.current
         for (const companion of companionsRef.current) {
-          if (!companion.visible) continue
+          if (!companion.visible || companion.home) continue
           const dist = Math.hypot(current.x - companion.x, current.y - companion.y)
           if (dist < CATCH_RADIUS) {
             escortPathRef.current = buildPathToHouse(current)
@@ -622,15 +629,7 @@ export default function TownMap() {
                     className="player-shadow"
                   />
                   <image
-                    href={
-                      companion.kind === 'dog'
-                        ? companion.walkFrame === 0
-                          ? dogWalk
-                          : dogWalk2
-                        : companion.walkFrame === 0
-                          ? catWalk
-                          : catWalk2
-                    }
+                    href={companion.sprite}
                     x={companion.x - COMPANION_WIDTH / 2}
                     y={companion.y - COMPANION_HEIGHT / 2}
                     width={COMPANION_WIDTH}
