@@ -6,6 +6,10 @@ import meWalk from '../assets/characters/me-walk.png'
 import meWalk2 from '../assets/characters/me-walk-2.png'
 import himWalk from '../assets/characters/him-walk.png'
 import himWalk2 from '../assets/characters/him-walk-2.png'
+import dogWalk from '../assets/characters/dog-1.png'
+import dogWalk2 from '../assets/characters/dog-2.png'
+import catWalk from '../assets/characters/cat-1.png'
+import catWalk2 from '../assets/characters/cat-2.png'
 import townBackground from '../assets/town-profile.jpg'
 import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, type Building } from './buildings'
 import {
@@ -49,7 +53,60 @@ const HIM_ROWS = [ROAD1_Y, ROAD2_Y, ROAD3_Y]
 
 const CHURCH_BUILDING = BUILDINGS.find((building) => building.id === 'church')!
 const CHURCH_DOOR = doorPoint(CHURCH_BUILDING)
+const HOUSE_BUILDING = BUILDINGS.find((building) => building.id === 'house')!
+const HOUSE_DOOR = doorPoint(HOUSE_BUILDING)
 const TOTAL_STOPS = BUILDINGS.filter((building) => !building.noStop).length
+
+const COMPANION_WIDTH = 22
+const COMPANION_HEIGHT = 22
+
+type CompanionKind = 'dog' | 'cat'
+
+interface CompanionState {
+  id: string
+  kind: CompanionKind
+  x: number
+  y: number
+  visible: boolean
+  walkFrame: 0 | 1
+  facingLeft: boolean
+}
+
+const INITIAL_COMPANIONS: CompanionState[] = [
+  { id: 'dog-1', kind: 'dog', x: 0, y: 0, visible: false, walkFrame: 0, facingLeft: false },
+  { id: 'dog-2', kind: 'dog', x: 0, y: 0, visible: false, walkFrame: 0, facingLeft: false },
+  { id: 'cat-1', kind: 'cat', x: 0, y: 0, visible: false, walkFrame: 0, facingLeft: false },
+]
+
+// Picks a random point somewhere on the road grid (trunk roads only, never
+// inside a building spur) so companions always spawn reachable by foot.
+function randomRoadPoint(): Point {
+  if (Math.random() < 0.25) {
+    return { x: VERTICAL_ROAD_X, y: ROAD1_Y + Math.random() * (ROAD3_Y - ROAD1_Y) }
+  }
+  const row = HIM_ROWS[Math.floor(Math.random() * HIM_ROWS.length)]
+  return { x: ROAD_X1 + 20 + Math.random() * (ROAD_X2 - ROAD_X1 - 40), y: row }
+}
+
+// Spawns 3 companion points spread out from each other and from `avoid`
+// (the spot where "him" just vanished), retrying a few times if too close.
+function spawnCompanionPoints(avoid: Point): Point[] {
+  const points: Point[] = []
+  for (let i = 0; i < 3; i += 1) {
+    let candidate = randomRoadPoint()
+    let attempts = 0
+    while (
+      attempts < 20 &&
+      (Math.hypot(candidate.x - avoid.x, candidate.y - avoid.y) < 80 ||
+        points.some((p) => Math.hypot(p.x - candidate.x, p.y - candidate.y) < 60))
+    ) {
+      candidate = randomRoadPoint()
+      attempts += 1
+    }
+    points.push(candidate)
+  }
+  return points
+}
 
 // Placeholder baseline levels for the stats that aren't yet tied to a game
 // mechanic -- easy to tune later, or wire up to real events (e.g. visiting
@@ -89,16 +146,24 @@ function formatToday() {
   return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-// Builds a simple road-following route from any point on the grid to the
-// church door: over to the vertical connector, up/down to road 1, across to
-// the church, then down its spur to the door.
-function buildPathToChurch(start: Point): Point[] {
+// Builds a simple road-following route from any point on the grid to a
+// building's door: over to the vertical connector, up/down to the door's
+// own road row, across to the building, then down its spur to the door.
+function buildPathToDoor(start: Point, door: Point, roadY: number): Point[] {
   const path: Point[] = []
   if (Math.abs(start.x - VERTICAL_ROAD_X) > 1) path.push({ x: VERTICAL_ROAD_X, y: start.y })
-  if (Math.abs(start.y - ROAD1_Y) > 1) path.push({ x: VERTICAL_ROAD_X, y: ROAD1_Y })
-  path.push({ x: CHURCH_DOOR.x, y: ROAD1_Y })
-  path.push(CHURCH_DOOR)
+  if (Math.abs(start.y - roadY) > 1) path.push({ x: VERTICAL_ROAD_X, y: roadY })
+  path.push({ x: door.x, y: roadY })
+  path.push(door)
   return path
+}
+
+function buildPathToChurch(start: Point): Point[] {
+  return buildPathToDoor(start, CHURCH_DOOR, ROAD1_Y)
+}
+
+function buildPathToHouse(start: Point): Point[] {
+  return buildPathToDoor(start, HOUSE_DOOR, ROAD3_Y)
 }
 
 export default function TownMap() {
@@ -116,6 +181,7 @@ export default function TownMap() {
   const [himVisible, setHimVisible] = useState(true)
   const [isEscorting, setIsEscorting] = useState(false)
   const [showCelebration, setShowCelebration] = useState(false)
+  const [companions, setCompanions] = useState<CompanionState[]>(INITIAL_COMPANIONS)
   const today = formatToday()
 
   const stats = {
@@ -136,10 +202,15 @@ export default function TownMap() {
   const isEscortingRef = useRef(false)
   const escortPathRef = useRef<Point[]>([])
   const escortIndexRef = useRef(0)
+  const escortKindRef = useRef<'him' | 'companion' | null>(null)
+  const escortCompanionIdRef = useRef<string | null>(null)
+  const companionsRef = useRef<CompanionState[]>(companions)
+  const companionsSpawnedRef = useRef(false)
   const celebrationTimeoutRef = useRef<number | null>(null)
   playerRef.current = player
   himVisibleRef.current = himVisible
   isEscortingRef.current = isEscorting
+  companionsRef.current = companions
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -176,16 +247,29 @@ export default function TownMap() {
         const current = playerRef.current
 
         if (idx >= path.length) {
-          // Arrived: separate, hide him, hand control back to the player, and celebrate.
+          // Arrived: separate, hand control back to the player, and wrap up
+          // whichever escort just finished.
+          if (escortKindRef.current === 'him') {
+            setHimVisible(false)
+            himVisibleRef.current = false
+            setShowCelebration(true)
+            if (celebrationTimeoutRef.current !== null) window.clearTimeout(celebrationTimeoutRef.current)
+            celebrationTimeoutRef.current = window.setTimeout(() => setShowCelebration(false), CELEBRATION_DURATION_MS)
+            if (!companionsSpawnedRef.current) {
+              companionsSpawnedRef.current = true
+              const points = spawnCompanionPoints(current)
+              setCompanions((prev) => prev.map((c, i) => ({ ...c, x: points[i].x, y: points[i].y, visible: true })))
+            }
+          } else if (escortKindRef.current === 'companion' && escortCompanionIdRef.current) {
+            const rescuedId = escortCompanionIdRef.current
+            setCompanions((prev) => prev.map((c) => (c.id === rescuedId ? { ...c, visible: false } : c)))
+          }
           setIsEscorting(false)
           isEscortingRef.current = false
-          setHimVisible(false)
-          himVisibleRef.current = false
           setIsMoving(false)
           pressedKeys.current.clear()
-          setShowCelebration(true)
-          if (celebrationTimeoutRef.current !== null) window.clearTimeout(celebrationTimeoutRef.current)
-          celebrationTimeoutRef.current = window.setTimeout(() => setShowCelebration(false), CELEBRATION_DURATION_MS)
+          escortKindRef.current = null
+          escortCompanionIdRef.current = null
         } else {
           const target = path[idx]
           const tdx = target.x - current.x
@@ -203,16 +287,33 @@ export default function TownMap() {
             playerRef.current = nextPlayer
             if (dirX !== 0) {
               setFacingLeft(dirX < 0)
-              setHimFacingLeft(dirX < 0)
             }
-            setHim({ x: nextPlayer.x - dirX * ESCORT_TRAIL_OFFSET, y: nextPlayer.y - dirY * ESCORT_TRAIL_OFFSET })
+            const trailPos = { x: nextPlayer.x - dirX * ESCORT_TRAIL_OFFSET, y: nextPlayer.y - dirY * ESCORT_TRAIL_OFFSET }
+            if (escortKindRef.current === 'him') {
+              setHim(trailPos)
+              if (dirX !== 0) setHimFacingLeft(dirX < 0)
+            } else if (escortKindRef.current === 'companion' && escortCompanionIdRef.current) {
+              const id = escortCompanionIdRef.current
+              setCompanions((prev) =>
+                prev.map((c) =>
+                  c.id === id ? { ...c, x: trailPos.x, y: trailPos.y, facingLeft: dirX !== 0 ? dirX < 0 : c.facingLeft } : c,
+                ),
+              )
+            }
             setIsMoving(true)
 
             walkFrameCounterRef.current += 1
             if (walkFrameCounterRef.current >= WALK_FRAME_SKIP) {
               walkFrameCounterRef.current = 0
               setWalkFrame((f) => (f === 0 ? 1 : 0))
-              setHimWalkFrame((f) => (f === 0 ? 1 : 0))
+              if (escortKindRef.current === 'him') {
+                setHimWalkFrame((f) => (f === 0 ? 1 : 0))
+              } else if (escortKindRef.current === 'companion' && escortCompanionIdRef.current) {
+                const id = escortCompanionIdRef.current
+                setCompanions((prev) =>
+                  prev.map((c) => (c.id === id ? { ...c, walkFrame: c.walkFrame === 0 ? 1 : 0 } : c)),
+                )
+              }
             }
           }
         }
@@ -349,9 +450,30 @@ export default function TownMap() {
         if (!modalBuilding && caughtDist < CATCH_RADIUS) {
           escortPathRef.current = buildPathToChurch(current)
           escortIndexRef.current = 0
+          escortKindRef.current = 'him'
           setIsEscorting(true)
           isEscortingRef.current = true
           pressedKeys.current.clear()
+        }
+      }
+
+      // Companion catch detection: if the player reaches a visible, un-rescued
+      // dog or cat, start the escort to walk it home one at a time.
+      if (!modalBuilding && !isEscortingRef.current) {
+        const current = playerRef.current
+        for (const companion of companionsRef.current) {
+          if (!companion.visible) continue
+          const dist = Math.hypot(current.x - companion.x, current.y - companion.y)
+          if (dist < CATCH_RADIUS) {
+            escortPathRef.current = buildPathToHouse(current)
+            escortIndexRef.current = 0
+            escortKindRef.current = 'companion'
+            escortCompanionIdRef.current = companion.id
+            setIsEscorting(true)
+            isEscortingRef.current = true
+            pressedKeys.current.clear()
+            break
+          }
         }
       }
 
@@ -486,6 +608,40 @@ export default function TownMap() {
                 className="player-sprite"
               />
             </>
+          )}
+
+          {companions.map(
+            (companion) =>
+              companion.visible && (
+                <g key={companion.id}>
+                  <ellipse
+                    cx={companion.x}
+                    cy={companion.y + COMPANION_HEIGHT / 2 - 3}
+                    rx={9}
+                    ry={4}
+                    className="player-shadow"
+                  />
+                  <image
+                    href={
+                      companion.kind === 'dog'
+                        ? companion.walkFrame === 0
+                          ? dogWalk
+                          : dogWalk2
+                        : companion.walkFrame === 0
+                          ? catWalk
+                          : catWalk2
+                    }
+                    x={companion.x - COMPANION_WIDTH / 2}
+                    y={companion.y - COMPANION_HEIGHT / 2}
+                    width={COMPANION_WIDTH}
+                    height={COMPANION_HEIGHT}
+                    transform={
+                      companion.facingLeft ? `scale(-1 1) translate(${-2 * companion.x} 0)` : undefined
+                    }
+                    className="player-sprite"
+                  />
+                </g>
+              ),
           )}
 
           <ellipse cx={player.x} cy={player.y + PLAYER_HEIGHT / 2 - 4} rx={12} ry={5} className="player-shadow" />

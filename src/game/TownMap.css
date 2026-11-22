@@ -90,7 +90,7 @@
    fill div reveals the real, controllable percentage. */
 .town-hud-bar {
   position: absolute;
-  top: 6.6%;
+  top: 5.8%;
   height: 1.9%;
   border-radius: 999px;
   background: #f0dfc4;
@@ -104,17 +104,17 @@
 }
 
 .town-hud-bar--education {
-  left: 38.7%;
+  left: 38.3%;
   width: 7.6%;
 }
 
 .town-hud-bar--health {
-  left: 51%;
+  left: 50.2%;
   width: 7.6%;
 }
 
 .town-hud-bar--exploration {
-  left: 63.3%;
+  left: 62.1%;
   width: 7.6%;
 }
 
