@@ -73,6 +73,16 @@
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
 }
 
+.town-sick-emoji {
+  font-size: 18px;
+  text-anchor: middle;
+  animation: town-pickup-bob 1.6s ease-in-out infinite;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.6);
+  stroke-width: 2px;
+  pointer-events: none;
+}
+
 @keyframes town-pickup-bob {
   0%,
   100% {

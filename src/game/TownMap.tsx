@@ -10,6 +10,7 @@ import dog1Sprite from '../assets/characters/dog-1.png'
 import dog2Sprite from '../assets/characters/dog-2.png'
 import catSprite from '../assets/characters/cat-2.png'
 import mePat from '../assets/characters/me-pat.png'
+import meMoto from '../assets/characters/me-moto.png'
 import meCar from '../assets/characters/me-car.png'
 import hatSprite from '../assets/characters/grad-hat.png'
 import diplomaSprite from '../assets/characters/grad-diploma.png'
@@ -206,6 +207,15 @@ const HEALTH_DECAY_DURATION_MS = STAT_DECAY_DURATION_MS * 2
 // Being sick (hospital icon active, uncollected) slows the player down a lot.
 const SICK_SPEED_MULTIPLIER = 0.35
 
+// The endgame loop: once the final job has appeared, a research icon at
+// Unicamp and a curiosity icon at the airport pop up whenever education or
+// exploration dips below the middle of their bars -- collecting one tops
+// that stat back up (same spike-and-decay mechanism as every other stat
+// boost), which naturally brings the icon back once it decays below the
+// middle again.
+const EDUCATION_MIDDLE = 50
+const EXPLORATION_MIDDLE = 50
+
 const WEDDING_EMOJIS = ['🎉', '👰', '💍', '🤵', '🎶', '🎊', '💍', '👰']
 const PET_RESCUE_EMOJIS = ['🐶', '🐱', '🐾', '❤️', '🐾', '❤️', '🐶', '🐱']
 const BREAKUP_EMOJIS = ['🥲', '🤷‍♀️', '🤷‍♂️', '💔', '👎', '🥲', '💔', '👎']
@@ -214,12 +224,8 @@ const JOB_EMOJIS = ['🪙', '🌱', '💪', '🌱', '📈', '🪙', '💪', '�
 const MONEY_EMOJIS = ['🤑', '🪙', '💵', '👏', '🤑', '💵', '🪙', '👏']
 const TRAVEL_EMOJIS = ['🎓', '✈️', '🌍', '🧳', '😁', '☀️', '💖', '🤩']
 const DIPLOMA_EMOJIS = ['🎓', '😁', '📜', '👩‍🎓', '🤩']
-// The endgame loop: once the final job appears, a research icon at Unicamp
-// and a curiosity icon at the airport keep reappearing indefinitely (no
-// money reward -- just something to keep doing, alongside health upkeep).
 const RESEARCH_EMOJIS = ['🤔', '🎉', '🏆', '📖', '🔖', '🤓']
-const AIRPORT_LOOP_EMOJIS = ['⁉️', '🤔', '⏳', '🥱', '👀']
-const FINAL_LOOP_REAPPEAR_MS = 6000
+const AIRPORT_LOOP_EMOJIS = ['⁉️', '⏳', '👀']
 const GYM_EMOJIS = ['💪', '🏋️‍♂️', '🥰', '💪', '🏋️‍♂️', '🥰']
 const SUPERMARKET_EMOJIS = ['🍎', '🍓', '🍍', '🍒', '🌱', '🌻']
 const HOSPITAL_EMOJIS = ['🤒', '🤢', '🤮', '🤧', '😷']
@@ -397,9 +403,7 @@ export default function TownMap() {
   const healthIconRef = useRef<'gym' | 'supermarket' | 'hospital' | null>(null)
   const healthTurnRef = useRef<'gym' | 'supermarket'>('gym')
   const researchAvailableRef = useRef(false)
-  const researchReappearTimeoutRef = useRef<number | null>(null)
   const airportLoopAvailableRef = useRef(false)
-  const airportLoopReappearTimeoutRef = useRef<number | null>(null)
   const carImageReadyRef = useRef(false)
   const himPhaseRef = useRef<'before-church' | 'after-church' | 'reunited' | 'done'>('before-church')
   const companionsRef = useRef<CompanionState[]>(companions)
@@ -956,22 +960,6 @@ export default function TownMap() {
         setJob2Available(true)
       }
 
-      // Endgame phase begins the moment the final job appears: the research
-      // and curiosity icons start their perpetual loop (health upkeep is
-      // gated on the same flag, over in the stat tick effect below).
-      if (job2AvailableRef.current && !researchAvailableRef.current && researchReappearTimeoutRef.current === null) {
-        researchAvailableRef.current = true
-        setResearchAvailable(true)
-      }
-      if (
-        job2AvailableRef.current &&
-        !airportLoopAvailableRef.current &&
-        airportLoopReappearTimeoutRef.current === null
-      ) {
-        airportLoopAvailableRef.current = true
-        setAirportLoopAvailable(true)
-      }
-
       // Second job offer, in front of Unicamp, available once the player
       // reappears after the second flight AND every other job has been taken:
       // collecting it triggers the usual job celebration and replenishes the
@@ -1015,7 +1003,8 @@ export default function TownMap() {
       }
 
       // Research icon at Unicamp, part of the endgame loop: no money reward,
-      // just collect-and-reappear indefinitely once the final job has shown up.
+      // just restores the education bar (which naturally dips below the
+      // middle again over time, bringing the icon back).
       if (!modalBuilding && !isEscortingRef.current && !playerHiddenRef.current && researchAvailableRef.current) {
         const current = playerRef.current
         const dist = Math.hypot(current.x - UNICAMP_DOOR.x, current.y - UNICAMP_DOOR.y)
@@ -1023,16 +1012,12 @@ export default function TownMap() {
           researchAvailableRef.current = false
           setResearchAvailable(false)
           triggerCelebration(RESEARCH_EMOJIS, UNICAMP_DOOR)
-          if (researchReappearTimeoutRef.current !== null) window.clearTimeout(researchReappearTimeoutRef.current)
-          researchReappearTimeoutRef.current = window.setTimeout(() => {
-            researchReappearTimeoutRef.current = null
-            researchAvailableRef.current = true
-            setResearchAvailable(true)
-          }, FINAL_LOOP_REAPPEAR_MS)
+          spikeStat(educationSpikeRef)
         }
       }
 
-      // Curiosity icon at the airport, the other half of the endgame loop.
+      // Curiosity icon at the airport, the other half of the endgame loop:
+      // restores the exploration bar the same way.
       if (!modalBuilding && !isEscortingRef.current && !playerHiddenRef.current && airportLoopAvailableRef.current) {
         const current = playerRef.current
         const dist = Math.hypot(current.x - AIRPORT_DOOR.x, current.y - AIRPORT_DOOR.y)
@@ -1040,12 +1025,7 @@ export default function TownMap() {
           airportLoopAvailableRef.current = false
           setAirportLoopAvailable(false)
           triggerCelebration(AIRPORT_LOOP_EMOJIS, AIRPORT_DOOR)
-          if (airportLoopReappearTimeoutRef.current !== null) window.clearTimeout(airportLoopReappearTimeoutRef.current)
-          airportLoopReappearTimeoutRef.current = window.setTimeout(() => {
-            airportLoopReappearTimeoutRef.current = null
-            airportLoopAvailableRef.current = true
-            setAirportLoopAvailable(true)
-          }, FINAL_LOOP_REAPPEAR_MS)
+          spikeStat(explorationSpikeRef)
         }
       }
 
@@ -1118,8 +1098,6 @@ export default function TownMap() {
       if (hat2AppearTimeoutRef.current !== null) window.clearTimeout(hat2AppearTimeoutRef.current)
       if (passport2AppearTimeoutRef.current !== null) window.clearTimeout(passport2AppearTimeoutRef.current)
       if (playerHiddenTimeoutRef.current !== null) window.clearTimeout(playerHiddenTimeoutRef.current)
-      if (researchReappearTimeoutRef.current !== null) window.clearTimeout(researchReappearTimeoutRef.current)
-      if (airportLoopReappearTimeoutRef.current !== null) window.clearTimeout(airportLoopReappearTimeoutRef.current)
     }
   }, [])
 
@@ -1131,10 +1109,28 @@ export default function TownMap() {
       const now = performance.now()
       const explorationBaseline = TOTAL_STOPS > 0 ? Math.round((visitedRef.current.size / TOTAL_STOPS) * 100) : 0
       setHappinessStat(Math.round(clamp(statSpikeValue(happinessSpikeRef.current, now, BASE_HAPPINESS), 0, 100)))
-      setEducationStat(Math.round(clamp(statSpikeValue(educationSpikeRef.current, now, BASE_EDUCATION), 0, 100)))
-      setExplorationStat(
-        Math.round(clamp(statSpikeValue(explorationSpikeRef.current, now, explorationBaseline), 0, 100)),
+      const educationValue = Math.round(
+        clamp(statSpikeValue(educationSpikeRef.current, now, BASE_EDUCATION), 0, 100),
       )
+      setEducationStat(educationValue)
+      const explorationValue = Math.round(
+        clamp(statSpikeValue(explorationSpikeRef.current, now, explorationBaseline), 0, 100),
+      )
+      setExplorationStat(explorationValue)
+
+      // Endgame loop icons: once the final job has appeared, the research
+      // (education) and curiosity (exploration) icons pop up whenever their
+      // stat dips below the middle of its bar.
+      if (job2AvailableRef.current) {
+        if (!researchAvailableRef.current && educationValue < EDUCATION_MIDDLE) {
+          researchAvailableRef.current = true
+          setResearchAvailable(true)
+        }
+        if (!airportLoopAvailableRef.current && explorationValue < EXPLORATION_MIDDLE) {
+          airportLoopAvailableRef.current = true
+          setAirportLoopAvailable(true)
+        }
+      }
 
       // Health decays continuously (unlike the spike-based stats above) and
       // drives its own upkeep icons at the gym/supermarket/hospital -- but
@@ -1182,7 +1178,9 @@ export default function TownMap() {
   const spriteSrc = motoActive
     ? hasCar
       ? meCar
-      : mePat
+      : moneyCollectCount > 1
+        ? meMoto
+        : mePat
     : isMoving
       ? walkFrame === 0
         ? meWalk
@@ -1436,6 +1434,16 @@ export default function TownMap() {
                 transform={shouldMirror ? `scale(-1 1) translate(${-2 * player.x} 0)` : undefined}
                 className="player-sprite"
               />
+              {healthIcon === 'hospital' && (
+                <text
+                  x={player.x}
+                  y={player.y - (motoActive ? vehicleHeight : PLAYER_HEIGHT) / 2 - 8}
+                  textAnchor="middle"
+                  className="town-sick-emoji"
+                >
+                  🤢
+                </text>
+              )}
             </>
           )}
         </svg>
