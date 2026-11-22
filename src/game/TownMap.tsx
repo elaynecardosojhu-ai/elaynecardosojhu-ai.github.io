@@ -33,16 +33,17 @@ const WALK_FRAME_SKIP = 10 // how many animation ticks to hold each leg pose bef
 
 const HIM_WIDTH = 26
 const HIM_HEIGHT = 38
-const HIM_SPEED = 90 // px per second, a bit more relaxed than the player
-const HIM_ARRIVE_RADIUS = 6
+const HIM_SPEED = MOVE_SPEED // walks at the same pace/cadence as the player
+const HIM_TURN_CHANCE = 0.35 // odds of turning at an intersection instead of continuing straight
 
-// Waypoints along the three trunk roads for the background NPC to wander
-// between (intersections and road ends only, never a building's spur).
-const HIM_WAYPOINTS: Point[] = [ROAD1_Y, ROAD2_Y, ROAD3_Y].flatMap((y) => [
-  { x: ROAD_X1, y },
-  { x: VERTICAL_ROAD_X, y },
-  { x: ROAD_X2, y },
-])
+interface HimMoveState {
+  x: number
+  y: number
+  axis: 'horizontal' | 'vertical'
+  sign: 1 | -1
+}
+
+const HIM_ROWS = [ROAD1_Y, ROAD2_Y, ROAD3_Y]
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
@@ -50,11 +51,6 @@ function clamp(value: number, min: number, max: number) {
 
 function formatToday() {
   return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-function pickNextWaypoint(exclude: Point): Point {
-  const options = HIM_WAYPOINTS.filter((p) => p.x !== exclude.x || p.y !== exclude.y)
-  return options[Math.floor(Math.random() * options.length)]
 }
 
 export default function TownMap() {
@@ -66,7 +62,7 @@ export default function TownMap() {
   const [nearBuilding, setNearBuilding] = useState<Building | null>(null)
   const [modalBuilding, setModalBuilding] = useState<Building | null>(null)
   const [justVisited, setJustVisited] = useState(false)
-  const [him, setHim] = useState<Point>(() => pickNextWaypoint({ x: -1, y: -1 }))
+  const [him, setHim] = useState<Point>({ x: ROAD_X1, y: ROAD2_Y })
   const [himFacingLeft, setHimFacingLeft] = useState(false)
   const [himWalkFrame, setHimWalkFrame] = useState(0)
   const today = formatToday()
@@ -76,11 +72,9 @@ export default function TownMap() {
   const lastTimeRef = useRef<number | null>(null)
   const playerRef = useRef(player)
   const walkFrameCounterRef = useRef(0)
-  const himRef = useRef(him)
-  const himTargetRef = useRef<Point>(pickNextWaypoint(him))
+  const himMoveRef = useRef<HimMoveState>({ x: ROAD_X1, y: ROAD2_Y, axis: 'horizontal', sign: 1 })
   const himWalkFrameCounterRef = useRef(0)
   playerRef.current = player
-  himRef.current = him
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -162,27 +156,58 @@ export default function TownMap() {
         setIsMoving(false)
       }
 
-      // Background NPC: wanders between random waypoints on the trunk roads.
-      const himCurrent = himRef.current
-      const target = himTargetRef.current
-      const himDx = target.x - himCurrent.x
-      const himDy = target.y - himCurrent.y
-      const himDist = Math.hypot(himDx, himDy)
+      // Background NPC: follows the trunk roads, turning at intersections and
+      // wrapping around to the opposite end when it reaches a road's end.
+      const himState = himMoveRef.current
+      let nextHimState: HimMoveState
 
-      if (himDist < HIM_ARRIVE_RADIUS) {
-        himTargetRef.current = pickNextWaypoint(himCurrent)
-      } else {
-        const himStepX = (himDx / himDist) * HIM_SPEED * dt
-        const himStepY = (himDy / himDist) * HIM_SPEED * dt
-        const nextHim = { x: himCurrent.x + himStepX, y: himCurrent.y + himStepY }
-        setHim(nextHim)
-        if (himStepX !== 0) setHimFacingLeft(himStepX < 0)
+      if (himState.axis === 'horizontal') {
+        const rawX = himState.x + himState.sign * HIM_SPEED * dt
+        const crossedIntersection =
+          himState.x !== VERTICAL_ROAD_X && (himState.x - VERTICAL_ROAD_X) * (rawX - VERTICAL_ROAD_X) <= 0
 
-        himWalkFrameCounterRef.current += 1
-        if (himWalkFrameCounterRef.current >= WALK_FRAME_SKIP) {
-          himWalkFrameCounterRef.current = 0
-          setHimWalkFrame((f) => (f === 0 ? 1 : 0))
+        if (crossedIntersection && Math.random() < HIM_TURN_CHANCE) {
+          nextHimState = {
+            x: VERTICAL_ROAD_X,
+            y: himState.y,
+            axis: 'vertical',
+            sign: Math.random() < 0.5 ? 1 : -1,
+          }
+        } else {
+          let wrappedX = rawX
+          if (wrappedX > ROAD_X2) wrappedX = ROAD_X1
+          if (wrappedX < ROAD_X1) wrappedX = ROAD_X2
+          nextHimState = { x: wrappedX, y: himState.y, axis: 'horizontal', sign: himState.sign }
         }
+      } else {
+        const rawY = himState.y + himState.sign * HIM_SPEED * dt
+        const crossedRow = HIM_ROWS.find(
+          (rowY) => himState.y !== rowY && (himState.y - rowY) * (rawY - rowY) <= 0,
+        )
+
+        if (crossedRow !== undefined && Math.random() < HIM_TURN_CHANCE) {
+          nextHimState = {
+            x: himState.x,
+            y: crossedRow,
+            axis: 'horizontal',
+            sign: Math.random() < 0.5 ? 1 : -1,
+          }
+        } else {
+          let wrappedY = rawY
+          if (wrappedY > ROAD3_Y) wrappedY = ROAD1_Y
+          if (wrappedY < ROAD1_Y) wrappedY = ROAD3_Y
+          nextHimState = { x: himState.x, y: wrappedY, axis: 'vertical', sign: himState.sign }
+        }
+      }
+
+      himMoveRef.current = nextHimState
+      setHim({ x: nextHimState.x, y: nextHimState.y })
+      if (nextHimState.axis === 'horizontal') setHimFacingLeft(nextHimState.sign < 0)
+
+      himWalkFrameCounterRef.current += 1
+      if (himWalkFrameCounterRef.current >= WALK_FRAME_SKIP) {
+        himWalkFrameCounterRef.current = 0
+        setHimWalkFrame((f) => (f === 0 ? 1 : 0))
       }
 
       frameRef.current = requestAnimationFrame(step)
