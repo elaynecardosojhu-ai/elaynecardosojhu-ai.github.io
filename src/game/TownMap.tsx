@@ -69,6 +69,12 @@ const BANK_BUILDING = BUILDINGS.find((building) => building.id === 'bank')!
 const BANK_DOOR = doorPoint(BANK_BUILDING)
 const AIRPORT_BUILDING = BUILDINGS.find((building) => building.id === 'airport')!
 const AIRPORT_DOOR = doorPoint(AIRPORT_BUILDING)
+const GYM_BUILDING = BUILDINGS.find((building) => building.id === 'gym')!
+const GYM_DOOR = doorPoint(GYM_BUILDING)
+const SUPERMARKET_BUILDING = BUILDINGS.find((building) => building.id === 'supermarket')!
+const SUPERMARKET_DOOR = doorPoint(SUPERMARKET_BUILDING)
+const HOSPITAL_BUILDING = BUILDINGS.find((building) => building.id === 'hospital')!
+const HOSPITAL_DOOR = doorPoint(HOSPITAL_BUILDING)
 
 // Job opportunities unlock (one icon each) once the graduation hat has been
 // collected, in front of the three "career" buildings.
@@ -102,6 +108,9 @@ const PLAYER_DISAPPEAR_DURATION_MS = 2000
 const MOTO_RIDE_DURATION_MS = 8000
 const MOTO_WIDTH = 42
 const MOTO_HEIGHT = 42
+// The car is noticeably bigger than the scooter it replaces.
+const CAR_WIDTH = MOTO_WIDTH * 2
+const CAR_HEIGHT = MOTO_HEIGHT * 2
 const PICKUP_WIDTH = 22
 const PICKUP_HEIGHT = 22
 
@@ -168,10 +177,10 @@ function spawnCompanionPoints(avoid: Point): Point[] {
 
 // Resting/baseline levels the stat bars settle back towards once any event
 // -driven spike has fully decayed. Exploration's baseline is computed live
-// from buildings visited; health has no event tied to it yet.
+// from buildings visited. Health works differently -- see HEALTH_* below --
+// it decays continuously rather than spiking and settling.
 const BASE_HAPPINESS = 70
 const BASE_EDUCATION = 85
-const BASE_HEALTH = 60
 const MIN_HAPPINESS = 8
 
 // How long a stat takes to decay back down from its event-triggered spike
@@ -185,6 +194,17 @@ const STAT_TICK_MS = 400
 // through doesn't pick it up by accident.
 const PICKUP_DWELL_MS = 450
 
+// Health decays continuously (a bit faster than the other stats' full decay
+// window) until it's topped back up at the gym, supermarket or hospital.
+// Icons appear once it drops past these thresholds.
+const HEALTH_MAX = 100
+const HEALTH_MIN = 0
+const HEALTH_MIDDLE = 50 // below this, a gym/supermarket icon appears
+const HEALTH_CRITICAL = 20 // below this, neglect forces a hospital visit
+const HEALTH_DECAY_DURATION_MS = 11000 // faster than STAT_DECAY_DURATION_MS
+// Being sick (hospital icon active, uncollected) slows the player down a lot.
+const SICK_SPEED_MULTIPLIER = 0.35
+
 const WEDDING_EMOJIS = ['🎉', '👰', '💍', '🤵', '🎶', '🎊', '💍', '👰']
 const PET_RESCUE_EMOJIS = ['🐶', '🐱', '🐾', '❤️', '🐾', '❤️', '🐶', '🐱']
 const BREAKUP_EMOJIS = ['🥲', '🤷‍♀️', '🤷‍♂️', '💔', '👎', '🥲', '💔', '👎']
@@ -193,6 +213,9 @@ const JOB_EMOJIS = ['🪙', '🌱', '💪', '🌱', '📈', '🪙', '💪', '�
 const MONEY_EMOJIS = ['🤑', '🪙', '💵', '👏', '🤑', '💵', '🪙', '👏']
 const TRAVEL_EMOJIS = ['🎓', '✈️', '🌍', '🧳', '😁', '☀️', '💖', '🤩']
 const DIPLOMA_EMOJIS = ['🎓', '😁', '📜', '👩‍🎓', '🤩']
+const GYM_EMOJIS = ['💪', '🏋️‍♂️', '🥰', '💪', '🏋️‍♂️', '🥰']
+const SUPERMARKET_EMOJIS = ['🍎', '🍓', '🍍', '🍒', '🌱', '🌻']
+const HOSPITAL_EMOJIS = ['🤒', '🤢', '🤮', '🤧', '😷']
 const CELEBRATION_DURATION_MS = 2600
 interface CelebrationParticle {
   emoji: string
@@ -303,6 +326,8 @@ export default function TownMap() {
   const [hasCar, setHasCar] = useState(false)
   const [happinessStat, setHappinessStat] = useState(BASE_HAPPINESS)
   const [educationStat, setEducationStat] = useState(BASE_EDUCATION)
+  const [healthStat, setHealthStat] = useState(HEALTH_MAX)
+  const [healthIcon, setHealthIcon] = useState<'gym' | 'supermarket' | 'hospital' | null>(null)
   const [explorationStat, setExplorationStat] = useState(
     TOTAL_STOPS > 0 ? Math.round((visited.size / TOTAL_STOPS) * 100) : 0,
   )
@@ -311,7 +336,7 @@ export default function TownMap() {
   const stats = {
     happiness: happinessStat,
     education: educationStat,
-    health: BASE_HEALTH,
+    health: healthStat,
     exploration: explorationStat,
   }
 
@@ -358,6 +383,9 @@ export default function TownMap() {
   const happinessSpikeRef = useRef<StatSpike | null>(null)
   const educationSpikeRef = useRef<StatSpike | null>(null)
   const explorationSpikeRef = useRef<StatSpike | null>(null)
+  const healthRef = useRef(HEALTH_MAX)
+  const healthIconRef = useRef<'gym' | 'supermarket' | 'hospital' | null>(null)
+  const healthTurnRef = useRef<'gym' | 'supermarket'>('gym')
   const himPhaseRef = useRef<'before-church' | 'after-church' | 'reunited' | 'done'>('before-church')
   const companionsRef = useRef<CompanionState[]>(companions)
   const companionsSpawnedRef = useRef(false)
@@ -543,8 +571,10 @@ export default function TownMap() {
 
         if (dx !== 0 || dy !== 0) {
           const length = Math.hypot(dx, dy)
-          const stepX = (dx / length) * MOVE_SPEED * dt
-          const stepY = (dy / length) * MOVE_SPEED * dt
+          // Being sick (hospital icon active, not yet collected) slows the player down a lot.
+          const speed = healthIconRef.current === 'hospital' ? MOVE_SPEED * SICK_SPEED_MULTIPLIER : MOVE_SPEED
+          const stepX = (dx / length) * speed * dt
+          const stepY = (dy / length) * speed * dt
 
           const current = playerRef.current
           const rawX = current.x + stepX
@@ -906,6 +936,60 @@ export default function TownMap() {
         }
       }
 
+      // Health upkeep icons: once health drops below the middle, an icon
+      // appears at the gym or supermarket (alternating each time one gets
+      // collected); if it's neglected long enough to get close to empty,
+      // that icon is replaced by one at the hospital instead.
+      if (!modalBuilding && !isEscortingRef.current && !playerHiddenRef.current && healthIconRef.current === 'gym') {
+        const current = playerRef.current
+        const dist = Math.hypot(current.x - GYM_DOOR.x, current.y - GYM_DOOR.y)
+        if (dwellReady('gym', dist < CATCH_RADIUS, dt)) {
+          healthRef.current = HEALTH_MAX
+          setHealthStat(HEALTH_MAX)
+          healthIconRef.current = null
+          setHealthIcon(null)
+          healthTurnRef.current = 'supermarket'
+          triggerCelebration(GYM_EMOJIS, GYM_DOOR)
+        }
+      }
+
+      if (
+        !modalBuilding &&
+        !isEscortingRef.current &&
+        !playerHiddenRef.current &&
+        healthIconRef.current === 'supermarket'
+      ) {
+        const current = playerRef.current
+        const dist = Math.hypot(current.x - SUPERMARKET_DOOR.x, current.y - SUPERMARKET_DOOR.y)
+        if (dwellReady('supermarket', dist < CATCH_RADIUS, dt)) {
+          healthRef.current = HEALTH_MAX
+          setHealthStat(HEALTH_MAX)
+          healthIconRef.current = null
+          setHealthIcon(null)
+          healthTurnRef.current = 'gym'
+          triggerCelebration(SUPERMARKET_EMOJIS, SUPERMARKET_DOOR)
+        }
+      }
+
+      if (
+        !modalBuilding &&
+        !isEscortingRef.current &&
+        !playerHiddenRef.current &&
+        healthIconRef.current === 'hospital'
+      ) {
+        const current = playerRef.current
+        const dist = Math.hypot(current.x - HOSPITAL_DOOR.x, current.y - HOSPITAL_DOOR.y)
+        if (dwellReady('hospital', dist < CATCH_RADIUS, dt)) {
+          healthRef.current = HEALTH_MAX
+          setHealthStat(HEALTH_MAX)
+          healthIconRef.current = null
+          setHealthIcon(null)
+          // Recovered -- back to the normal gym/supermarket upkeep cycle.
+          healthTurnRef.current = 'gym'
+          triggerCelebration(HOSPITAL_EMOJIS, HOSPITAL_DOOR)
+        }
+      }
+
       frameRef.current = requestAnimationFrame(step)
 
     }
@@ -936,6 +1020,22 @@ export default function TownMap() {
       setExplorationStat(
         Math.round(clamp(statSpikeValue(explorationSpikeRef.current, now, explorationBaseline), 0, 100)),
       )
+
+      // Health decays continuously (unlike the spike-based stats above) and
+      // drives its own upkeep icons at the gym/supermarket/hospital.
+      const healthStep = (HEALTH_MAX - HEALTH_MIN) * (STAT_TICK_MS / HEALTH_DECAY_DURATION_MS)
+      healthRef.current = clamp(healthRef.current - healthStep, HEALTH_MIN, HEALTH_MAX)
+      if (healthIconRef.current === null && healthRef.current < HEALTH_MIDDLE) {
+        healthIconRef.current = healthTurnRef.current
+        setHealthIcon(healthIconRef.current)
+      } else if (
+        (healthIconRef.current === 'gym' || healthIconRef.current === 'supermarket') &&
+        healthRef.current <= HEALTH_CRITICAL
+      ) {
+        healthIconRef.current = 'hospital'
+        setHealthIcon('hospital')
+      }
+      setHealthStat(Math.round(healthRef.current))
     }
     const id = window.setInterval(tick, STAT_TICK_MS)
     return () => window.clearInterval(id)
@@ -974,6 +1074,8 @@ export default function TownMap() {
         ? meBack
         : meFront
   const shouldMirror = motoActive ? facingLeft : isMoving && facingLeft
+  const vehicleWidth = hasCar ? CAR_WIDTH : MOTO_WIDTH
+  const vehicleHeight = hasCar ? CAR_HEIGHT : MOTO_HEIGHT
   const himSpriteSrc = himWalkFrame === 0 ? himWalk : himWalk2
   const himShouldMirror = himFacingLeft
 
@@ -1134,6 +1236,24 @@ export default function TownMap() {
             />
           )}
 
+          {healthIcon === 'gym' && (
+            <text x={GYM_DOOR.x} y={GYM_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
+              🏊
+            </text>
+          )}
+
+          {healthIcon === 'supermarket' && (
+            <text x={SUPERMARKET_DOOR.x} y={SUPERMARKET_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
+              🍎
+            </text>
+          )}
+
+          {healthIcon === 'hospital' && (
+            <text x={HOSPITAL_DOOR.x} y={HOSPITAL_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
+              🩺
+            </text>
+          )}
+
           {himVisible && (
             <>
               <ellipse cx={him.x} cy={him.y + HIM_HEIGHT / 2 - 4} rx={11} ry={5} className="player-shadow" />
@@ -1180,10 +1300,10 @@ export default function TownMap() {
               <ellipse cx={player.x} cy={player.y + PLAYER_HEIGHT / 2 - 4} rx={12} ry={5} className="player-shadow" />
               <image
                 href={spriteSrc}
-                x={player.x - (motoActive ? MOTO_WIDTH : PLAYER_WIDTH) / 2}
-                y={player.y - (motoActive ? MOTO_HEIGHT : PLAYER_HEIGHT) / 2}
-                width={motoActive ? MOTO_WIDTH : PLAYER_WIDTH}
-                height={motoActive ? MOTO_HEIGHT : PLAYER_HEIGHT}
+                x={player.x - (motoActive ? vehicleWidth : PLAYER_WIDTH) / 2}
+                y={player.y - (motoActive ? vehicleHeight : PLAYER_HEIGHT) / 2}
+                width={motoActive ? vehicleWidth : PLAYER_WIDTH}
+                height={motoActive ? vehicleHeight : PLAYER_HEIGHT}
                 transform={shouldMirror ? `scale(-1 1) translate(${-2 * player.x} 0)` : undefined}
                 className="player-sprite"
               />
