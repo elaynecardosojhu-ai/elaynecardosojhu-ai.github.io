@@ -9,6 +9,10 @@ import himWalk2 from '../assets/characters/him-walk-2.png'
 import dog1Sprite from '../assets/characters/dog-1.png'
 import dog2Sprite from '../assets/characters/dog-2.png'
 import catSprite from '../assets/characters/cat-2.png'
+import meMoto from '../assets/characters/me-moto.png'
+import hatSprite from '../assets/characters/grad-hat.png'
+import diplomaSprite from '../assets/characters/grad-diploma.png'
+import passportSprite from '../assets/characters/passport.png'
 import townBackground from '../assets/town-profile.jpg'
 import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, type Building } from './buildings'
 import {
@@ -50,18 +54,21 @@ interface HimMoveState {
 
 const HIM_ROWS = [ROAD1_Y, ROAD2_Y, ROAD3_Y]
 
-const CHURCH_BUILDING = BUILDINGS.find((building) => building.id === 'church')!
-const CHURCH_DOOR = doorPoint(CHURCH_BUILDING)
 const HOUSE_BUILDING = BUILDINGS.find((building) => building.id === 'house')!
 const HOUSE_DOOR = doorPoint(HOUSE_BUILDING)
 const TJSP_BUILDING = BUILDINGS.find((building) => building.id === 'tjsp')!
 const TJSP_DOOR = doorPoint(TJSP_BUILDING)
+// The TJSP building's artwork doubles as the church for the wedding scene,
+// so both the wedding escort and the breakup escort share the same door.
+const CHURCH_DOOR = TJSP_DOOR
 const TOTAL_STOPS = BUILDINGS.filter((building) => !building.noStop).length
 
 const UNICAMP_BUILDING = BUILDINGS.find((building) => building.id === 'unicamp')!
 const UNICAMP_DOOR = doorPoint(UNICAMP_BUILDING)
 const BANK_BUILDING = BUILDINGS.find((building) => building.id === 'bank')!
 const BANK_DOOR = doorPoint(BANK_BUILDING)
+const AIRPORT_BUILDING = BUILDINGS.find((building) => building.id === 'airport')!
+const AIRPORT_DOOR = doorPoint(AIRPORT_BUILDING)
 
 // Job opportunities unlock (one icon each) once the graduation hat has been
 // collected, in front of the three "career" buildings.
@@ -73,6 +80,14 @@ const JOB_DOORS: Record<string, Point> = Object.fromEntries(
 // How long the player needs to be moving around before "him" shows up, so
 // there's a moment to get oriented first.
 const HIM_APPEAR_DELAY_MS = 3000
+
+// How long the player rides the scooter after collecting money from the
+// bank before reverting back to walking on foot.
+const MOTO_RIDE_DURATION_MS = 8000
+const MOTO_WIDTH = 42
+const MOTO_HEIGHT = 42
+const PICKUP_WIDTH = 22
+const PICKUP_HEIGHT = 22
 
 const COMPANION_WIDTH = 22
 const COMPANION_HEIGHT = 22
@@ -148,6 +163,8 @@ const BREAKUP_EMOJIS = ['🥲', '🤷‍♀️', '🤷‍♂️', '💔', '👎'
 const GRADUATION_EMOJIS = ['🎓', '👩‍🎓', '🎉', '📜', '👏', '🎓', '🎉', '📜']
 const JOB_EMOJIS = ['🪙', '🌱', '💪', '🌱', '📈', '🪙', '💪', '📈']
 const MONEY_EMOJIS = ['🤑', '🪙', '💵', '👏', '🤑', '💵', '🪙', '👏']
+const TRAVEL_EMOJIS = ['🎓', '✈️', '🌍', '🧳', '😁', '☀️', '💖', '🤩']
+const DIPLOMA_EMOJIS = ['🎓', '😁', '📜', '👩‍🎓', '🤩']
 const CELEBRATION_DURATION_MS = 2600
 interface CelebrationParticle {
   emoji: string
@@ -228,6 +245,9 @@ export default function TownMap() {
   const [hatCollected, setHatCollected] = useState(false)
   const [collectedJobs, setCollectedJobs] = useState<Set<string>>(new Set())
   const [moneyCollected, setMoneyCollected] = useState(false)
+  const [passportCollected, setPassportCollected] = useState(false)
+  const [diplomaCollected, setDiplomaCollected] = useState(false)
+  const [motoActive, setMotoActive] = useState(false)
   const today = formatToday()
 
   const stats = {
@@ -255,6 +275,9 @@ export default function TownMap() {
   const hatCollectedRef = useRef(false)
   const collectedJobsRef = useRef<Set<string>>(new Set())
   const moneyCollectedRef = useRef(false)
+  const passportCollectedRef = useRef(false)
+  const diplomaCollectedRef = useRef(false)
+  const motoRevertTimeoutRef = useRef<number | null>(null)
   const himPhaseRef = useRef<'before-church' | 'after-church' | 'reunited' | 'done'>('before-church')
   const companionsRef = useRef<CompanionState[]>(companions)
   const companionsSpawnedRef = useRef(false)
@@ -268,6 +291,12 @@ export default function TownMap() {
     setCelebration({ x: at.x, y: at.y, particles: buildCelebrationParticles(emojis) })
     if (celebrationTimeoutRef.current !== null) window.clearTimeout(celebrationTimeoutRef.current)
     celebrationTimeoutRef.current = window.setTimeout(() => setCelebration(null), CELEBRATION_DURATION_MS)
+  }
+
+  function startMotoRide() {
+    setMotoActive(true)
+    if (motoRevertTimeoutRef.current !== null) window.clearTimeout(motoRevertTimeoutRef.current)
+    motoRevertTimeoutRef.current = window.setTimeout(() => setMotoActive(false), MOTO_RIDE_DURATION_MS)
   }
 
   useEffect(() => {
@@ -603,6 +632,36 @@ export default function TownMap() {
           moneyCollectedRef.current = true
           setMoneyCollected(true)
           triggerCelebration(MONEY_EMOJIS, BANK_DOOR)
+          startMotoRide()
+        }
+      }
+
+      // Passport pickup in front of the airport, available once the first
+      // graduation has happened: collecting it triggers a travel celebration.
+      if (!modalBuilding && !isEscortingRef.current && hatCollectedRef.current && !passportCollectedRef.current) {
+        const current = playerRef.current
+        const dist = Math.hypot(current.x - AIRPORT_DOOR.x, current.y - AIRPORT_DOOR.y)
+        if (dist < CATCH_RADIUS) {
+          passportCollectedRef.current = true
+          setPassportCollected(true)
+          triggerCelebration(TRAVEL_EMOJIS, AIRPORT_DOOR)
+        }
+      }
+
+      // Diploma pickup in front of the house, available after any graduation
+      // or travel: collecting it triggers its own celebration.
+      if (
+        !modalBuilding &&
+        !isEscortingRef.current &&
+        (hatCollectedRef.current || passportCollectedRef.current) &&
+        !diplomaCollectedRef.current
+      ) {
+        const current = playerRef.current
+        const dist = Math.hypot(current.x - HOUSE_DOOR.x, current.y - HOUSE_DOOR.y)
+        if (dist < CATCH_RADIUS) {
+          diplomaCollectedRef.current = true
+          setDiplomaCollected(true)
+          triggerCelebration(DIPLOMA_EMOJIS, HOUSE_DOOR)
         }
       }
 
@@ -616,6 +675,7 @@ export default function TownMap() {
   useEffect(() => {
     return () => {
       if (celebrationTimeoutRef.current !== null) window.clearTimeout(celebrationTimeoutRef.current)
+      if (motoRevertTimeoutRef.current !== null) window.clearTimeout(motoRevertTimeoutRef.current)
     }
   }, [])
 
@@ -640,8 +700,16 @@ export default function TownMap() {
     setModalBuilding(building)
   }
 
-  const spriteSrc = isMoving ? (walkFrame === 0 ? meWalk : meWalk2) : nearBuilding ? meBack : meFront
-  const shouldMirror = isMoving && facingLeft
+  const spriteSrc = motoActive
+    ? meMoto
+    : isMoving
+      ? walkFrame === 0
+        ? meWalk
+        : meWalk2
+      : nearBuilding
+        ? meBack
+        : meFront
+  const shouldMirror = motoActive ? facingLeft : isMoving && facingLeft
   const himSpriteSrc = himWalkFrame === 0 ? himWalk : himWalk2
   const himShouldMirror = himFacingLeft
 
@@ -726,9 +794,14 @@ export default function TownMap() {
           })}
 
           {!hatCollected && (
-            <text x={UNICAMP_DOOR.x} y={UNICAMP_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
-              🎓
-            </text>
+            <image
+              href={hatSprite}
+              x={UNICAMP_DOOR.x - PICKUP_WIDTH / 2}
+              y={UNICAMP_DOOR.y - PICKUP_HEIGHT - 4}
+              width={PICKUP_WIDTH}
+              height={PICKUP_HEIGHT}
+              className="town-pickup-sprite"
+            />
           )}
 
           {hatCollected &&
@@ -745,6 +818,28 @@ export default function TownMap() {
             <text x={BANK_DOOR.x} y={BANK_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
               💰
             </text>
+          )}
+
+          {hatCollected && !passportCollected && (
+            <image
+              href={passportSprite}
+              x={AIRPORT_DOOR.x - PICKUP_WIDTH / 2}
+              y={AIRPORT_DOOR.y - PICKUP_HEIGHT - 4}
+              width={PICKUP_WIDTH}
+              height={PICKUP_HEIGHT}
+              className="town-pickup-sprite"
+            />
+          )}
+
+          {(hatCollected || passportCollected) && !diplomaCollected && (
+            <image
+              href={diplomaSprite}
+              x={HOUSE_DOOR.x - PICKUP_WIDTH / 2}
+              y={HOUSE_DOOR.y - PICKUP_HEIGHT - 4}
+              width={PICKUP_WIDTH}
+              height={PICKUP_HEIGHT}
+              className="town-pickup-sprite"
+            />
           )}
 
           {himVisible && (
@@ -791,10 +886,10 @@ export default function TownMap() {
           <ellipse cx={player.x} cy={player.y + PLAYER_HEIGHT / 2 - 4} rx={12} ry={5} className="player-shadow" />
           <image
             href={spriteSrc}
-            x={player.x - PLAYER_WIDTH / 2}
-            y={player.y - PLAYER_HEIGHT / 2}
-            width={PLAYER_WIDTH}
-            height={PLAYER_HEIGHT}
+            x={player.x - (motoActive ? MOTO_WIDTH : PLAYER_WIDTH) / 2}
+            y={player.y - (motoActive ? MOTO_HEIGHT : PLAYER_HEIGHT) / 2}
+            width={motoActive ? MOTO_WIDTH : PLAYER_WIDTH}
+            height={motoActive ? MOTO_HEIGHT : PLAYER_HEIGHT}
             transform={shouldMirror ? `scale(-1 1) translate(${-2 * player.x} 0)` : undefined}
             className="player-sprite"
           />
