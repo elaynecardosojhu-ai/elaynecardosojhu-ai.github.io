@@ -16,6 +16,7 @@ import hatSprite from '../assets/characters/grad-hat.png'
 import diplomaSprite from '../assets/characters/grad-diploma.png'
 import passportSprite from '../assets/characters/passport.png'
 import townBackground from '../assets/town-profile.jpg'
+import HomeSections from '../sections/HomeSections'
 import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, type Building } from './buildings'
 import {
   doorPoint,
@@ -294,6 +295,11 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
+// The five endgame-loop upkeep stops (research/curiosity/love/health x2) --
+// once the player has visited every one of these at least once, a small
+// note appears below the game pointing them at the rest of the page.
+const LOOP_KEYS = ['research', 'airportLoop', 'love', 'gym', 'supermarket'] as const
+
 // Builds a simple road-following route from any point on the grid to a
 // building's door: over to the vertical connector, up/down to the door's
 // own road row, across to the building, then down its spur to the door.
@@ -356,6 +362,7 @@ export default function TownMap() {
   const [researchAvailable, setResearchAvailable] = useState(false)
   const [airportLoopAvailable, setAirportLoopAvailable] = useState(false)
   const [loveAvailable, setLoveAvailable] = useState(false)
+  const [loopAllVisited, setLoopAllVisited] = useState(false)
   const [explorationStat, setExplorationStat] = useState(
     TOTAL_STOPS > 0 ? Math.round((visited.size / TOTAL_STOPS) * 100) : 0,
   )
@@ -415,6 +422,7 @@ export default function TownMap() {
   const researchAvailableRef = useRef(false)
   const airportLoopAvailableRef = useRef(false)
   const loveAvailableRef = useRef(false)
+  const loopVisitedRef = useRef<Set<(typeof LOOP_KEYS)[number]>>(new Set())
   const carImageReadyRef = useRef(false)
   const himPhaseRef = useRef<'before-church' | 'after-church' | 'reunited' | 'done'>('before-church')
   const companionsRef = useRef<CompanionState[]>(companions)
@@ -431,6 +439,13 @@ export default function TownMap() {
     setCelebration({ x: at.x, y: at.y, particles: buildCelebrationParticles(emojis) })
     if (celebrationTimeoutRef.current !== null) window.clearTimeout(celebrationTimeoutRef.current)
     celebrationTimeoutRef.current = window.setTimeout(() => setCelebration(null), CELEBRATION_DURATION_MS)
+  }
+
+  function markLoopVisited(key: (typeof LOOP_KEYS)[number]) {
+    loopVisitedRef.current.add(key)
+    if (LOOP_KEYS.every((k) => loopVisitedRef.current.has(k))) {
+      setLoopAllVisited(true)
+    }
   }
 
   function spikeStat(ref: { current: StatSpike | null }, from = 100, duration = STAT_DECAY_DURATION_MS) {
@@ -998,6 +1013,7 @@ export default function TownMap() {
           setResearchAvailable(false)
           triggerCelebration(RESEARCH_EMOJIS, UNICAMP_DOOR)
           spikeStat(educationSpikeRef)
+          markLoopVisited('research')
         }
       }
 
@@ -1011,6 +1027,7 @@ export default function TownMap() {
           setAirportLoopAvailable(false)
           triggerCelebration(AIRPORT_LOOP_EMOJIS, AIRPORT_DOOR)
           spikeStat(explorationSpikeRef)
+          markLoopVisited('airportLoop')
         }
       }
 
@@ -1024,6 +1041,7 @@ export default function TownMap() {
           setLoveAvailable(false)
           triggerCelebration(LOVE_EMOJIS, HOUSE_DOOR)
           spikeStat(happinessSpikeRef)
+          markLoopVisited('love')
         }
       }
 
@@ -1041,6 +1059,7 @@ export default function TownMap() {
           setHealthIcon(null)
           healthTurnRef.current = 'supermarket'
           triggerCelebration(GYM_EMOJIS, GYM_DOOR)
+          markLoopVisited('gym')
         }
       }
 
@@ -1059,6 +1078,7 @@ export default function TownMap() {
           setHealthIcon(null)
           healthTurnRef.current = 'gym'
           triggerCelebration(SUPERMARKET_EMOJIS, SUPERMARKET_DOOR)
+          markLoopVisited('supermarket')
         }
       }
 
@@ -1249,6 +1269,7 @@ export default function TownMap() {
 
   return (
     <div className="town">
+      <p className="town-tagline">Feel free to play.</p>
       <header className="town-header">
         {GREETINGS.map((g) => (
           <span key={g.text} className="town-header__greeting" style={{ fontFamily: g.font }}>
@@ -1534,6 +1555,14 @@ export default function TownMap() {
           </div>
         </div>
       )}
+
+      {loopAllVisited && (
+        <p className="town-tagline town-tagline--end">
+          You reached the end of this adventure. Take a look at my news below.
+        </p>
+      )}
+
+      <HomeSections />
     </div>
   )
 }

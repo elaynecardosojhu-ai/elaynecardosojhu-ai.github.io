@@ -27,6 +27,20 @@
   font-weight: 600;
 }
 
+.town-tagline {
+  width: 100%;
+  max-width: 900px;
+  text-align: center;
+  margin: 0 auto;
+  padding: 0 16px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.town-tagline--end {
+  padding-top: 20px;
+}
+
 .town-black-band {
   width: 100vw;
   margin-left: calc(50% - 50vw);
