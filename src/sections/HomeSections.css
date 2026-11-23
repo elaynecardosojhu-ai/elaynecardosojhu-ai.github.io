@@ -5,7 +5,7 @@
      backgrounds. */
   --home-c-about: #f3d9c4; /* light peach */
   --home-c-books: #c7e4ea; /* light teal */
-  --home-c-papers: #d6d4f0; /* light lavender */
+  --home-c-papers: #d7e4d0; /* light sage green */
   --home-c-contact: #f4e6b8; /* light mustard */
   --home-text-dark: #3b2415;
   width: 100%;
@@ -89,12 +89,6 @@
   opacity: 0.85;
 }
 
-.home-section__subtitle-paren {
-  font-family: var(--sans);
-  font-style: italic;
-  font-size: 0.75em;
-}
-
 .home-books,
 .home-papers {
   list-style: none;
@@ -162,6 +156,7 @@
 .home-papers__title {
   margin: 0;
   font-weight: 600;
+  font-size: 0.9em;
 }
 
 .home-papers__title a {
@@ -172,6 +167,7 @@
 .home-papers__venue {
   margin: 4px 0 0;
   opacity: 0.8;
+  font-size: 0.85em;
 }
 
 .home-contact {
@@ -186,8 +182,21 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   font-size: 16px;
+}
+
+.home-contact__links li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.home-contact__icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--home-text-dark);
 }
 
 .home-contact__links a {

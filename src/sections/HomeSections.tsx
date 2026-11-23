@@ -1,5 +1,6 @@
 import { CURRENT_BOOKS } from '../data/books'
 import { SELECTED_PAPERS } from '../data/papers'
+import profilePic from '../assets/profile-pic.jpg'
 import './HomeSections.css'
 
 // Homepage sections shown below the game, each a full-bleed panel in its own
@@ -13,9 +14,7 @@ export default function HomeSections() {
     <div className="home-sections">
       <section className="home-section home-section--about" id="about">
         <div className="home-section__inner home-section__inner--about">
-          <div className="home-about__photo" aria-hidden="true">
-            Photo
-          </div>
+          <img className="home-about__photo" src={profilePic} alt="Elayne" />
           <div>
             <h2 className="home-section__title">A little about me</h2>
             <p>
@@ -42,7 +41,8 @@ export default function HomeSections() {
         <div className="home-section__inner">
           <h2 className="home-section__title">Books I am reading</h2>
           <p className="home-section__subtitle">
-            Reading multiple books at once <span className="home-section__subtitle-paren">(and sometimes refusing to finish them because they are too good!)</span>
+            Reading multiple books at once (and sometimes refusing to finish them because they are
+            too good!)
           </p>
           <ul className="home-books">
             {CURRENT_BOOKS.map((book) => (
@@ -110,9 +110,21 @@ export default function HomeSections() {
           <div className="home-contact">
             <ul className="home-contact__links">
               <li>
-                <a href="mailto:elaynecardoso.jhu@gmail.com">elaynecardoso.jhu at gmail.com</a>
+                <svg className="home-contact__icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Zm0 2-8 5-8-5h16Zm0 12H4V8l8 5 8-5v10Z"
+                  />
+                </svg>
+                <span>elaynecardoso.jhu at gmail.com</span>
               </li>
               <li>
+                <svg className="home-contact__icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M20.45 20.45h-3.56v-5.57c0-1.33-.03-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.95v5.66H9.34V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28ZM5.34 7.43a2.07 2.07 0 1 1 0-4.14 2.07 2.07 0 0 1 0 4.14ZM7.12 20.45H3.56V9h3.56v11.45Z"
+                  />
+                </svg>
                 <a href="https://www.linkedin.com/in/elaynemorais" target="_blank" rel="noreferrer">
                   linkedin.com/in/elaynemorais
                 </a>
