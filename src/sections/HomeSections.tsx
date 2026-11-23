@@ -17,10 +17,22 @@ export default function HomeSections() {
             Photo
           </div>
           <div>
-            <h2 className="home-section__title">About me</h2>
+            <h2 className="home-section__title">A little about me</h2>
             <p>
-              Hi, I'm Elayne — welcome to my corner of the internet. (Placeholder bio — replace
-              this with your real story: background, interests, what you're working toward.)
+              I'm a computer scientist, sociologist, researcher, and teacher, fascinated by how
+              people perceive the world around them and how media, social media, and emerging
+              technologies like AI shape the way we think, interact, and understand society.
+            </p>
+            <p>
+              Over the years, I've worked primarily in academic environments, moving between
+              computer science, the social sciences, and education. Today, I work at the
+              intersection of software engineering and artificial intelligence, helping bring
+              solutions developed in research environments into production in industry.
+            </p>
+            <p>
+              When I'm not working, I'm usually being a pet mom to two dogs and a cat, swimming,
+              reading a book, or exploring the worlds of Assassin's Creed (huge fan). I'm always
+              looking for something new to learn, build, or explore.
             </p>
           </div>
         </div>
@@ -30,8 +42,7 @@ export default function HomeSections() {
         <div className="home-section__inner">
           <h2 className="home-section__title">Books I am reading</h2>
           <p className="home-section__subtitle">
-            Reading multiple books at once, and sometimes refusing to finish them because they are
-            too good!
+            Reading multiple books at once <span className="home-section__subtitle-paren">(and sometimes refusing to finish them because they are too good!)</span>
           </p>
           <ul className="home-books">
             {CURRENT_BOOKS.map((book) => (
@@ -99,7 +110,7 @@ export default function HomeSections() {
           <div className="home-contact">
             <ul className="home-contact__links">
               <li>
-                <a href="mailto:elaynecardoso.jhu@gmail.com">elaynecardoso.jhu@gmail.com</a>
+                <a href="mailto:elaynecardoso.jhu@gmail.com">elaynecardoso.jhu at gmail.com</a>
               </li>
               <li>
                 <a href="https://www.linkedin.com/in/elaynemorais" target="_blank" rel="noreferrer">
@@ -109,8 +120,8 @@ export default function HomeSections() {
             </ul>
             <div className="home-contact__map">
               <iframe
-                title="Institute of Computing, Unicamp"
-                src="https://maps.google.com/maps?q=Institute%20of%20Computing%20Unicamp&t=&z=16&ie=UTF8&iwloc=&output=embed"
+                title="R. Saturnino de Brito, 573 - Cidade Universitária, Campinas - SP"
+                src="https://maps.google.com/maps?q=R.%20Saturnino%20de%20Brito%2C%20573%2C%20Cidade%20Universit%C3%A1ria%2C%20Campinas%20-%20SP%2C%2013083-889&t=&z=16&ie=UTF8&iwloc=&output=embed"
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
               />

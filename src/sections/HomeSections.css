@@ -34,9 +34,18 @@
 
 .home-section__inner--about {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 28px;
   flex-wrap: wrap;
+}
+
+.home-section__inner--about > div {
+  flex: 1;
+  min-width: 260px;
+}
+
+.home-section__inner--about p + p {
+  margin-top: 14px;
 }
 
 .home-about__photo {
@@ -75,8 +84,15 @@
 
 .home-section__subtitle {
   margin: 0 0 20px;
+  font-family: 'Brush Script MT', cursive;
+  font-size: 1.15em;
+  opacity: 0.85;
+}
+
+.home-section__subtitle-paren {
+  font-family: var(--sans);
   font-style: italic;
-  opacity: 0.8;
+  font-size: 0.75em;
 }
 
 .home-books,
