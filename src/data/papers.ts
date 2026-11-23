@@ -9,6 +9,12 @@ export interface PaperEntry {
 
 export const SELECTED_PAPERS: PaperEntry[] = [
   {
+    title: 'Multi-Scenario Causal Discovery for Time-Series Analysis in Dynamic Systems',
+    authors:
+      'Esmin, A., Castro, M., Souza, B.C.D.O., Lustosa, A., Júnior, P.R.M., Werneck, R.D.O., Gonçalves, M.M., Lusquino Filho, L., Zampieri, M., Morais, E., Linares, O. and Estevam, V.',
+    venue: 'IEEE Access, 2026',
+  },
+  {
     title: 'Rock-type classification: A (critical) machine-learning perspective',
     authors:
       'Júnior, P.R.M., Salavati, S., Linares, O., Goncalves, M.M., Zampieri, M.F., de Sousa Ferreira, V.H., Castro, M., de Oliveira Werneck, R., Moura, R., Morais, E. and Esmin, A.',
@@ -19,12 +25,6 @@ export const SELECTED_PAPERS: PaperEntry[] = [
     authors:
       'Filho, L.L., de Oliveira Werneck, R., Castro, M., Ribeiro Mendes Júnior, P., Lustosa, A., Zampieri, M., Linares, O., Moura, R., Morais, E., Amaral, M. and Salavati, S.',
     venue: 'Neural Computing and Applications, 36(34), pp.21581-21605, 2024',
-  },
-  {
-    title: 'Multi-Scenario Causal Discovery for Time-Series Analysis in Dynamic Systems',
-    authors:
-      'Esmin, A., Castro, M., Souza, B.C.D.O., Lustosa, A., Júnior, P.R.M., Werneck, R.D.O., Gonçalves, M.M., Lusquino Filho, L., Zampieri, M., Morais, E., Linares, O. and Estevam, V.',
-    venue: 'IEEE Access, 2026',
   },
   {
     title: 'Watch the reservoir! Improving short-term production forecast through transformers',

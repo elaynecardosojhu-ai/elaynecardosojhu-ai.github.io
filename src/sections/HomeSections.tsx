@@ -12,12 +12,17 @@ export default function HomeSections() {
   return (
     <div className="home-sections">
       <section className="home-section home-section--about" id="about">
-        <div className="home-section__inner">
-          <h2 className="home-section__title">About me</h2>
-          <p>
-            Hi, I'm Elayne — welcome to my corner of the internet. (Placeholder bio — replace this
-            with your real story: background, interests, what you're working toward.)
-          </p>
+        <div className="home-section__inner home-section__inner--about">
+          <div className="home-about__photo" aria-hidden="true">
+            Photo
+          </div>
+          <div>
+            <h2 className="home-section__title">About me</h2>
+            <p>
+              Hi, I'm Elayne — welcome to my corner of the internet. (Placeholder bio — replace
+              this with your real story: background, interests, what you're working toward.)
+            </p>
+          </div>
         </div>
       </section>
 
@@ -25,8 +30,8 @@ export default function HomeSections() {
         <div className="home-section__inner">
           <h2 className="home-section__title">Books I am reading</h2>
           <p className="home-section__subtitle">
-            Yes, I read multiple books at once, and some I refuse to finish because I love them so
-            much.
+            Reading multiple books at once, and sometimes refusing to finish them because they are
+            too good!
           </p>
           <ul className="home-books">
             {CURRENT_BOOKS.map((book) => (
@@ -65,18 +70,6 @@ export default function HomeSections() {
         </div>
       </section>
 
-      <section className="home-section home-section--contact" id="contact">
-        <div className="home-section__inner">
-          <h2 className="home-section__title">Contact me</h2>
-          <div className="home-contact">
-            <div className="home-contact__photo" aria-hidden="true">
-              Photo
-            </div>
-            <p>(Placeholder — add your email, LinkedIn, or a contact form here.)</p>
-          </div>
-        </div>
-      </section>
-
       <section className="home-section home-section--papers" id="papers">
         <div className="home-section__inner">
           <h2 className="home-section__title">Selected papers (in collaboration)</h2>
@@ -97,6 +90,32 @@ export default function HomeSections() {
               </li>
             ))}
           </ul>
+        </div>
+      </section>
+
+      <section className="home-section home-section--contact" id="contact">
+        <div className="home-section__inner">
+          <h2 className="home-section__title">Let's connect!</h2>
+          <div className="home-contact">
+            <ul className="home-contact__links">
+              <li>
+                <a href="mailto:elaynecardoso.jhu@gmail.com">elaynecardoso.jhu@gmail.com</a>
+              </li>
+              <li>
+                <a href="https://www.linkedin.com/in/elaynemorais" target="_blank" rel="noreferrer">
+                  linkedin.com/in/elaynemorais
+                </a>
+              </li>
+            </ul>
+            <div className="home-contact__map">
+              <iframe
+                title="Institute of Computing, Unicamp"
+                src="https://maps.google.com/maps?q=Institute%20of%20Computing%20Unicamp&t=&z=16&ie=UTF8&iwloc=&output=embed"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            </div>
+          </div>
         </div>
       </section>
     </div>
