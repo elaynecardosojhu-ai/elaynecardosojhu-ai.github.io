@@ -34,7 +34,7 @@
 
 .home-section__inner--about {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 28px;
   flex-wrap: wrap;
 }
@@ -50,14 +50,13 @@
 
 .home-about__photo {
   flex: none;
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  border: 2px dashed rgba(59, 36, 21, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
+  width: auto;
+  max-width: 280px;
+  height: auto;
+  align-self: stretch;
+  object-fit: contain;
+  border-radius: 12px;
+  border: 2px solid rgba(59, 36, 21, 0.4);
 }
 
 .home-section--about {
