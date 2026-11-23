@@ -2,11 +2,12 @@ import { CURRENT_BOOKS } from '../data/books'
 import { SELECTED_PAPERS } from '../data/papers'
 import './HomeSections.css'
 
-// Homepage sections shown below the game, flowing full-bleed down the page
-// with each section blending into the next via a gradient, fall/coffee
-// palette. Content here is placeholder -- edit the JSX below for About/
-// Contact copy, and src/data/books.ts / src/data/papers.ts for the reading
-// list and papers.
+// Homepage sections shown below the game, each a full-bleed panel in its own
+// flat color from a same-tone complementary palette (sharp edges, no
+// gradient). Sections use position: sticky so that as you scroll, each new
+// section slides up and over the previous one -- a stacked-card effect.
+// Content here is placeholder -- edit the JSX below for About/Contact copy,
+// and src/data/books.ts / src/data/papers.ts for the reading list and papers.
 export default function HomeSections() {
   return (
     <div className="home-sections">
@@ -30,17 +31,34 @@ export default function HomeSections() {
           <ul className="home-books">
             {CURRENT_BOOKS.map((book) => (
               <li key={book.title} className="home-books__item">
-                <p className="home-books__title">
-                  {book.url ? (
-                    <a href={book.url} target="_blank" rel="noreferrer">
-                      {book.title}
-                    </a>
-                  ) : (
-                    book.title
-                  )}
-                </p>
-                <span className="home-books__author">{book.author}</span>
-                {book.note && <p className="home-books__note">{book.note}</p>}
+                {book.coverId && (
+                  <a
+                    className="home-books__cover-link"
+                    href={book.url ?? `https://books.google.com/books?id=${book.coverId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <img
+                      className="home-books__cover"
+                      src={`https://books.google.com/books/content?id=${book.coverId}&printsec=frontcover&img=1&zoom=1&source=gbs_api`}
+                      alt={`Cover of ${book.title}`}
+                      loading="lazy"
+                    />
+                  </a>
+                )}
+                <div className="home-books__info">
+                  <p className="home-books__title">
+                    {book.url ? (
+                      <a href={book.url} target="_blank" rel="noreferrer">
+                        {book.title}
+                      </a>
+                    ) : (
+                      book.title
+                    )}
+                  </p>
+                  <span className="home-books__author">{book.author}</span>
+                  {book.note && <p className="home-books__note">{book.note}</p>}
+                </div>
               </li>
             ))}
           </ul>

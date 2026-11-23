@@ -1269,7 +1269,6 @@ export default function TownMap() {
 
   return (
     <div className="town">
-      <p className="town-tagline">Feel free to play.</p>
       <header className="town-header">
         {GREETINGS.map((g) => (
           <span key={g.text} className="town-header__greeting" style={{ fontFamily: g.font }}>
@@ -1278,6 +1277,7 @@ export default function TownMap() {
         ))}
       </header>
       <div className="town-black-band">
+        <p className="town-tagline">Feel free to play.</p>
         <div className="town-map-wrap">
         <img src={townBackground} alt="" className="town-map-wrap__background" />
 
@@ -1529,6 +1529,12 @@ export default function TownMap() {
           )}
         </svg>
       </div>
+
+      {loopAllVisited && (
+        <p className="town-tagline town-tagline--end">
+          You reached the end of this adventure. Take a look at my news below.
+        </p>
+      )}
       </div>
 
       {nearBuilding && !modalBuilding && (
@@ -1554,12 +1560,6 @@ export default function TownMap() {
             </div>
           </div>
         </div>
-      )}
-
-      {loopAllVisited && (
-        <p className="town-tagline town-tagline--end">
-          You reached the end of this adventure. Take a look at my news below.
-        </p>
       )}
 
       <HomeSections />
