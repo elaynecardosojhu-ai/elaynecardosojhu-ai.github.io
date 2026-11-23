@@ -6,10 +6,13 @@ export interface BookEntry {
   title: string
   author: string
   note?: string
+  url?: string
 }
 
 export const CURRENT_BOOKS: BookEntry[] = [
-  { title: 'Book Title Here', author: 'Author Name', note: 'Why you love it / where you are in it.' },
-  { title: 'Another Book Title', author: 'Author Name' },
-  { title: 'Yet Another Title', author: 'Author Name', note: 'This is the one you refuse to finish.' },
+  {
+    title: 'The Dispossessed',
+    author: 'Ursula K. Le Guin',
+    url: 'https://books.google.com.br/books?id=tlhFtmTixvwC&pg=PT25&source=gbs_toc_r&cad=1#v=onepage&q&f=false',
+  },
 ]
