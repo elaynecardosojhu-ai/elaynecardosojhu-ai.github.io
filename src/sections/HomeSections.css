@@ -118,6 +118,11 @@
   max-width: 760px;
 }
 
+.home-section__inner--about {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
 .home-section__inner--about p + p {
   margin-top: 14px;
 }

@@ -88,7 +88,7 @@ export default function HomeSections() {
                 d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"
               />
             </svg>
-            <span>R. Saturnino de Brito, 573 - Cidade Universitária, Campinas - SP, 13083-889</span>
+            <span>Campinas / SP / Brazil</span>
           </li>
         </ul>
         <div
@@ -118,7 +118,7 @@ export default function HomeSections() {
 
         <section className="home-session">
           {activeTab === 'about' && (
-            <div className="home-section__inner">
+            <div className="home-section__inner home-section__inner--about">
               <h2 className="home-section__title">A little about me</h2>
               <p>
                 I'm a computer scientist, sociologist, researcher, and teacher, fascinated by how
@@ -142,6 +142,17 @@ export default function HomeSections() {
           {activeTab === 'books' && (
             <div className="home-section__inner">
               <h2 className="home-section__title">Books I am reading</h2>
+              <p>
+                I collaborate with researchers throughout the development of their projects,
+                providing technical input and helping address challenges that arise along the
+                way. This includes investigating data inconsistencies, improving data workflows,
+                evaluating technical approaches, refactoring research code, and making solutions
+                more robust and maintainable. I participate in the papers revision prior to
+                submission, providing feedback on technical aspects, methodology implementation,
+                and the clarity of how the work is presented. I ultimately lead the deployment of
+                resulting solutions from experimental environments into production, making them
+                available for practical use by teams in the industry.
+              </p>
               <p className="home-section__subtitle">
                 Reading multiple books at once (and sometimes refusing to finish them because they
                 are too good!)

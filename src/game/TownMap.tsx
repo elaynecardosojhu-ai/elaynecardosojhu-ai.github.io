@@ -1531,9 +1531,7 @@ export default function TownMap() {
       </div>
 
       {loopAllVisited && (
-        <p className="town-tagline town-tagline--end">
-          You reached the end of this adventure. Take a look at my news below.
-        </p>
+        <p className="town-tagline town-tagline--end">Thanks for playing!</p>
       )}
       </div>
 
