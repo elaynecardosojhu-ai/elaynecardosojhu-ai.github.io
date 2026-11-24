@@ -72,15 +72,16 @@ export default function HomeSections() {
               github.com/elaynecardosojhu-ai
             </a>
           </li>
+          <li>
+            <svg className="home-contact__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"
+              />
+            </svg>
+            <span>R. Saturnino de Brito, 573 - Cidade Universitária, Campinas - SP, 13083-889</span>
+          </li>
         </ul>
-        <div className="home-sidebar__map">
-          <iframe
-            title="R. Saturnino de Brito, 573 - Cidade Universitária, Campinas - SP"
-            src="https://maps.google.com/maps?q=R.%20Saturnino%20de%20Brito%2C%20573%2C%20Cidade%20Universit%C3%A1ria%2C%20Campinas%20-%20SP%2C%2013083-889&t=&z=16&ie=UTF8&iwloc=&output=embed"
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
-        </div>
         <div
           className="home-sidebar__resizer"
           onPointerDown={handlePointerDown}
@@ -95,6 +96,8 @@ export default function HomeSections() {
       <div className="home-content">
         <section className="home-section home-section--about" id="about">
           <div className="home-section__inner">
+            <h1 className="home-section__name">Elayne Cardoso de Morais, M.A.</h1>
+            <p className="home-section__role">Research Software Engineer | Sociologist</p>
             <h2 className="home-section__title">A little about me</h2>
             <p>
               I'm a computer scientist, sociologist, researcher, and teacher, fascinated by how
