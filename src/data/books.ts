@@ -12,6 +12,7 @@ export interface BookEntry {
   note?: string
   url?: string
   coverId?: string
+  coverUrl?: string
 }
 
 export const CURRENT_BOOKS: BookEntry[] = [
@@ -36,6 +37,7 @@ export const CURRENT_BOOKS: BookEntry[] = [
   {
     title: 'Bambino a Roma',
     author: 'Chico Buarque, Raul Loureiro (ill.)',
-    url: 'https://www.amazon.com.br/dp/8535938761',
+    url: 'https://www.companhiadasletras.com.br/9788535938760-bambino-a-roma-4561/p',
+    coverUrl: 'https://covers.openlibrary.org/b/isbn/9788535938760-L.jpg',
   },
 ]

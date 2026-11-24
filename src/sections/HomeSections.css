@@ -19,6 +19,8 @@
   margin-right: calc(50% - 50vw);
   box-sizing: border-box;
   min-height: 70vh;
+  max-height: 100vh;
+  overflow-y: auto;
   display: flex;
   align-items: center;
   justify-content: center;
