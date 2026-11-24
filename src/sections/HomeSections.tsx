@@ -1,44 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
 import { CURRENT_BOOKS } from '../data/books'
 import { SELECTED_PAPERS } from '../data/papers'
 import profilePic from '../assets/profile-pic.jpg'
 import './HomeSections.css'
 
-const SECTION_IDS = ['about', 'books', 'papers'] as const
-
 // Homepage sections shown below the game: a sticky left sidebar (photo +
-// contact info, background color tracks whichever section is active) next
-// to a scrolling right column of content panels, each a full-bleed panel in
-// its own flat color from a same-tone complementary palette (sharp edges,
-// no gradient). Sections use position: sticky so that as you scroll, each
-// new section slides up and over the previous one -- a stacked-card effect.
-// Edit the JSX below for About copy, and src/data/books.ts /
-// src/data/papers.ts for the reading list and papers.
+// contact info, one flat elegant color) next to a scrolling right column of
+// content panels, each a full-bleed panel in its own flat color from a
+// same-tone complementary palette (sharp edges, no gradient). Sections use
+// position: sticky so that as you scroll, each new section slides up and
+// over the previous one -- a stacked-card effect. Edit the JSX below for
+// About copy, and src/data/books.ts / src/data/papers.ts for the reading
+// list and papers.
 export default function HomeSections() {
-  const [active, setActive] = useState<(typeof SECTION_IDS)[number]>('about')
-  const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setActive(entry.target.id as (typeof SECTION_IDS)[number])
-          }
-        })
-      },
-      { rootMargin: '-1px 0px -99% 0px', threshold: 0 },
-    )
-    SECTION_IDS.forEach((id) => {
-      const el = sectionRefs.current[id]
-      if (el) observer.observe(el)
-    })
-    return () => observer.disconnect()
-  }, [])
-
   return (
-    <div className={`home-layout home-layout--${active}`}>
-      <aside className={`home-sidebar home-sidebar--${active}`}>
+    <div className="home-layout">
+      <aside className="home-sidebar">
         <img className="home-sidebar__photo" src={profilePic} alt="Elayne" />
         <ul className="home-contact__links">
           <li>
@@ -84,13 +60,7 @@ export default function HomeSections() {
       </aside>
 
       <div className="home-content">
-        <section
-          className="home-section home-section--about"
-          id="about"
-          ref={(el) => {
-            sectionRefs.current.about = el
-          }}
-        >
+        <section className="home-section home-section--about" id="about">
           <div className="home-section__inner">
             <h2 className="home-section__title">A little about me</h2>
             <p>
@@ -112,13 +82,7 @@ export default function HomeSections() {
           </div>
         </section>
 
-        <section
-          className="home-section home-section--books"
-          id="books"
-          ref={(el) => {
-            sectionRefs.current.books = el
-          }}
-        >
+        <section className="home-section home-section--books" id="books">
           <div className="home-section__inner">
             <h2 className="home-section__title">Books I am reading</h2>
             <p className="home-section__subtitle">
@@ -165,13 +129,7 @@ export default function HomeSections() {
           </div>
         </section>
 
-        <section
-          className="home-section home-section--papers"
-          id="papers"
-          ref={(el) => {
-            sectionRefs.current.papers = el
-          }}
-        >
+        <section className="home-section home-section--papers" id="papers">
           <div className="home-section__inner">
             <h2 className="home-section__title">Selected papers (in collaboration)</h2>
             <ul className="home-papers">

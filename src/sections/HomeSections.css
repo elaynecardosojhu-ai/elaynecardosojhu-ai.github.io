@@ -1,21 +1,21 @@
 .home-sections,
 .home-layout {
-  /* Same-tone, complementary (warm/cool) light fall-coffee palette -- every
-     color shares the same lightness/saturation so nothing gets darker as
-     you scroll, it just changes hue. Dark text for contrast on the light
-     backgrounds. */
-  --home-c-about: #f3d9c4; /* light peach */
-  --home-c-books: #c7e4ea; /* light teal */
-  --home-c-papers: #d7e4d0; /* light sage green */
-  --home-text-dark: #3b2415;
+  /* Elegant, light, same-tone palette -- muted dusty pastels with a warm
+     neutral text color, no gradient, sharp divisions between sections. */
+  --home-c-sidebar: #ece6dd; /* soft champagne */
+  --home-c-about: #ece0e0; /* dusty blush */
+  --home-c-books: #e1e6df; /* soft sage */
+  --home-c-papers: #dfe3ea; /* powder blue */
+  --home-text-dark: #3f3a36;
   width: 100%;
   display: flex;
   align-items: flex-start;
+  font-size: 15px;
 }
 
 .home-sidebar {
   flex: none;
-  width: 260px;
+  width: 340px;
   box-sizing: border-box;
   position: sticky;
   top: 0;
@@ -25,29 +25,17 @@
   flex-direction: column;
   align-items: center;
   gap: 20px;
-  padding: 40px 20px;
+  padding: 40px 24px;
   color: var(--home-text-dark);
-  transition: background-color 0.4s ease;
-}
-
-.home-sidebar--about {
-  background: var(--home-c-about);
-}
-
-.home-sidebar--books {
-  background: var(--home-c-books);
-}
-
-.home-sidebar--papers {
-  background: var(--home-c-papers);
+  background: var(--home-c-sidebar);
 }
 
 .home-sidebar__photo {
   width: 100%;
-  max-width: 200px;
+  max-width: 270px;
   border-radius: 12px;
   object-fit: cover;
-  border: 2px solid rgba(59, 36, 21, 0.4);
+  border: 2px solid rgba(63, 58, 54, 0.3);
 }
 
 .home-sidebar__map {
@@ -98,6 +86,7 @@
 
 .home-section--books {
   background: var(--home-c-books);
+  padding-bottom: 220px;
 }
 
 .home-section--papers {
@@ -106,13 +95,13 @@
 
 .home-section__title {
   margin: 0 0 8px;
-  font-size: clamp(22px, 3vw, 28px);
+  font-size: clamp(19px, 2.4vw, 24px);
 }
 
 .home-section__subtitle {
   margin: 0 0 20px;
   font-family: 'Brush Script MT', cursive;
-  font-size: 1.15em;
+  font-size: 1.1em;
   opacity: 0.85;
 }
 
