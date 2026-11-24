@@ -8,12 +8,13 @@ const DEFAULT_SIDEBAR_WIDTH = 400
 const MIN_SIDEBAR_WIDTH = 260
 const MAX_SIDEBAR_WIDTH = 560
 
-type TabId = 'about' | 'books' | 'papers'
+type TabId = 'about' | 'books' | 'papers' | 'game'
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'about', label: 'About me' },
   { id: 'books', label: 'Books I am reading' },
   { id: 'papers', label: 'Selected papers' },
+  { id: 'game', label: 'About the game' },
 ]
 
 // Homepage shown below the game: a sticky left sidebar (photo, name/title,
@@ -217,6 +218,74 @@ export default function HomeSections() {
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {activeTab === 'game' && (
+            <div className="home-section__inner">
+              <h2 className="home-game__heading">Concept</h2>
+              <p>
+                The game in this homepage is a small playable retelling of my own path. Each
+                building is a real stop along the way. Walking around the town, collecting a
+                diploma, taking on jobs, and saving up for a car is a lighthearted way of tracing
+                how I got from student to researcher to software engineer.
+              </p>
+
+              <h2 className="home-game__heading">Curious how to build it?</h2>
+              <p>
+                Here's a walkthrough of the ideas behind it, with small code snippets along the
+                way.
+              </p>
+
+              <h3 className="home-game__subheading">1. The stack</h3>
+              <p>
+                It's built with React, TypeScript and Vite — no game engine involved. The whole
+                map is just SVG shapes drawn over a background image, animated with plain CSS.
+              </p>
+
+              <h3 className="home-game__subheading">2. The world is just data</h3>
+              <p>
+                Instead of hard-coding each building into the page, every building is one entry in
+                a plain list: where it sits, how big it is, and what text it shows. Adding a new
+                building means adding one object to this list — the map draws itself from it.
+              </p>
+              <pre className="home-game__code">
+                <code>{`const BUILDINGS = [
+  { id: 'house', label: 'House', x: 400, y: 340, width: 130, height: 90 },
+  { id: 'airport', label: 'Airport', x: 430, y: 200, width: 220, height: 90 },
+  // ...
+]`}</code>
+              </pre>
+
+              <h3 className="home-game__subheading">3. One loop runs the whole game</h3>
+              <p>
+                Every frame, the game reads which keys are pressed, moves the player a little, and
+                checks what's nearby — then draws the result. This repeats continuously via{' '}
+                <code>requestAnimationFrame</code>, the browser's way of saying "call me right
+                before the next screen paint."
+              </p>
+              <pre className="home-game__code">
+                <code>{`function loop() {
+  updatePlayerPosition()
+  checkNearbyBuildings()
+  requestAnimationFrame(loop)
+}`}</code>
+              </pre>
+
+              <h3 className="home-game__subheading">5. Milestones unlock each other</h3>
+              <p>
+                The diploma, the jobs, and the car aren't independent — each is only available once
+                the one before it is done. That's just a chain of simple true/false checks.
+              </p>
+              <pre className="home-game__code">
+                <code>{`const nextJobAvailable = hasHat && collectedJobs.size < JOBS.length`}</code>
+              </pre>
+
+              <h3 className="home-game__subheading">7. Shipping it</h3>
+              <p>
+                There's no backend. <code>vite build</code> turns everything into plain
+                HTML/CSS/JS, which gets hosted directly on GitHub Pages.
+              </p>
             </div>
           )}
         </section>
