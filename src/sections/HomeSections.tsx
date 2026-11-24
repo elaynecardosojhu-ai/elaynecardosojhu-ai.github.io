@@ -272,7 +272,7 @@ export default function HomeSections() {
 }`}</code>
               </pre>
 
-              <h3 className="home-game__subheading">5. Milestones unlock each other</h3>
+              <h3 className="home-game__subheading">4. Milestones unlock each other</h3>
               <p>
                 The diploma, the jobs, and the car aren't independent — each is only available once
                 the one before it is done. That's just a chain of simple true/false checks.
@@ -281,7 +281,7 @@ export default function HomeSections() {
                 <code>{`const nextJobAvailable = hasHat && collectedJobs.size < JOBS.length`}</code>
               </pre>
 
-              <h3 className="home-game__subheading">7. Shipping it</h3>
+              <h3 className="home-game__subheading">5. Shipping it</h3>
               <p>
                 There's no backend. <code>vite build</code> turns everything into plain
                 HTML/CSS/JS, which gets hosted directly on GitHub Pages.

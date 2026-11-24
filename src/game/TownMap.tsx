@@ -361,6 +361,7 @@ export default function TownMap() {
   const [playerHidden, setPlayerHidden] = useState(false)
   const [hasCar, setHasCar] = useState(false)
   const [divorceDone, setDivorceDone] = useState(false)
+  const [weddingDone, setWeddingDone] = useState(false)
   const [happinessStat, setHappinessStat] = useState(BASE_HAPPINESS)
   const [educationStat, setEducationStat] = useState(BASE_EDUCATION)
   const [healthStat, setHealthStat] = useState(HEALTH_MAX)
@@ -437,6 +438,7 @@ export default function TownMap() {
   const divorceDoneRef = useRef(false)
   const celebrationTimeoutRef = useRef<number | null>(null)
   const checkmarkTimeoutsRef = useRef<Record<string, number>>({})
+  const weddingDoneRef = useRef(false)
   playerRef.current = player
   himVisibleRef.current = himVisible
   isEscortingRef.current = isEscorting
@@ -559,6 +561,8 @@ export default function TownMap() {
               setHimVisible(false)
               himVisibleRef.current = false
               triggerCelebration(WEDDING_EMOJIS, current)
+              weddingDoneRef.current = true
+              setWeddingDone(true)
               if (!companionsSpawnedRef.current) {
                 companionsSpawnedRef.current = true
                 const points = spawnCompanionPoints(current)
@@ -1270,6 +1274,9 @@ export default function TownMap() {
       case 'bank':
         return hasCar
       case 'church':
+        // Church visits are frequent early on, but the checkmark should wait
+        // for the actual wedding to happen there, not just a casual visit.
+        return weddingDone
       case 'park':
         return visited.has(buildingId)
       default:
@@ -1299,7 +1306,7 @@ export default function TownMap() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collectedJobs, divorceDone, hasCar, visited])
+  }, [collectedJobs, divorceDone, hasCar, visited, weddingDone])
 
   useEffect(() => {
     return () => {
