@@ -1,20 +1,44 @@
+import { useCallback, useRef, useState } from 'react'
 import { CURRENT_BOOKS } from '../data/books'
 import { SELECTED_PAPERS } from '../data/papers'
 import profilePic from '../assets/profile-pic.jpg'
 import './HomeSections.css'
 
+const DEFAULT_SIDEBAR_WIDTH = 400
+const MIN_SIDEBAR_WIDTH = 260
+const MAX_SIDEBAR_WIDTH = 560
+
 // Homepage sections shown below the game: a sticky left sidebar (photo +
-// contact info, one flat elegant color) next to a scrolling right column of
-// content panels, each a full-bleed panel in its own flat color from a
-// same-tone complementary palette (sharp edges, no gradient). Sections use
-// position: sticky so that as you scroll, each new section slides up and
-// over the previous one -- a stacked-card effect. Edit the JSX below for
-// About copy, and src/data/books.ts / src/data/papers.ts for the reading
-// list and papers.
+// contact info, one flat elegant color, resizable by dragging its right
+// edge) next to a scrolling right column of content panels, each a
+// full-bleed panel in its own flat color from a same-tone complementary
+// palette (sharp edges, no gradient). Sections use position: sticky so that
+// as you scroll, each new section slides up and over the previous one -- a
+// stacked-card effect. Edit the JSX below for About copy, and
+// src/data/books.ts / src/data/papers.ts for the reading list and papers.
 export default function HomeSections() {
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH)
+  const draggingRef = useRef(false)
+
+  const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    draggingRef.current = true
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }, [])
+
+  const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!draggingRef.current) return
+    const next = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, event.clientX))
+    setSidebarWidth(next)
+  }, [])
+
+  const handlePointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    draggingRef.current = false
+    event.currentTarget.releasePointerCapture(event.pointerId)
+  }, [])
+
   return (
     <div className="home-layout">
-      <aside className="home-sidebar">
+      <aside className="home-sidebar" style={{ width: sidebarWidth }}>
         <img className="home-sidebar__photo" src={profilePic} alt="Elayne" />
         <ul className="home-contact__links">
           <li>
@@ -57,6 +81,15 @@ export default function HomeSections() {
             referrerPolicy="no-referrer-when-downgrade"
           />
         </div>
+        <div
+          className="home-sidebar__resizer"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+        />
       </aside>
 
       <div className="home-content">

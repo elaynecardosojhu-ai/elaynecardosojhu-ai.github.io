@@ -15,7 +15,6 @@
 
 .home-sidebar {
   flex: none;
-  width: 340px;
   box-sizing: border-box;
   position: sticky;
   top: 0;
@@ -28,6 +27,21 @@
   padding: 40px 24px;
   color: var(--home-text-dark);
   background: var(--home-c-sidebar);
+}
+
+.home-sidebar__resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.home-sidebar__resizer:hover,
+.home-sidebar__resizer:active {
+  background: rgba(63, 58, 54, 0.15);
 }
 
 .home-sidebar__photo {
@@ -228,11 +242,15 @@
 
   .home-sidebar {
     position: static;
-    width: 100%;
+    width: 100% !important;
     height: auto;
     flex-direction: row;
     flex-wrap: wrap;
     justify-content: center;
+  }
+
+  .home-sidebar__resizer {
+    display: none;
   }
 
   .home-sidebar__photo {

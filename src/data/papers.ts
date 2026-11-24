@@ -34,7 +34,7 @@ export const SELECTED_PAPERS: PaperEntry[] = [
     authors:
       'Werneck, R., Lusquino Filho, L.A., Lustosa, A., Loomba, A., Gonçalves, M.M., Esmin, A., Salavati, S., Morais, E., Mendes Junior, P.R., Zampieri, M. and Amaral, M.',
     venue: 'SPE Europec featured at EAGE Conference and Exhibition (p. D031S016R002), SPE, 2024',
-    url: 'https://rafaelwerneck.github.io/files/werneck2024watch.pdf',
+    url: 'https://onepetro.org/SPEEURO/proceedings-abstract/24EURO/24EURO/D031S016R002/546302',
   },
   {
     title:
@@ -42,5 +42,6 @@ export const SELECTED_PAPERS: PaperEntry[] = [
     authors:
       'Gonçalves, M.M., Werneck, R., Castro, M., Amaral, M., Mendes, P.R., Filho, L.L., Esmin, A., Moura, R., Morais, E., Linares, O.C. and Lustosa, A.',
     venue: 'SPE Europec featured at EAGE Conference and Exhibition (p. D031S019R002), SPE, 2024',
+    url: 'https://onepetro.org/SPEEURO/proceedings-abstract/24EURO/24EURO/D031S019R002/546525',
   },
 ]
