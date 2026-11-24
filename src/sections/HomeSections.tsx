@@ -116,7 +116,7 @@ export default function HomeSections() {
           ))}
         </nav>
 
-        <section className="home-session">
+        <section className={`home-session${activeTab === 'about' ? ' home-session--about' : ''}`}>
           {activeTab === 'about' && (
             <div className="home-section__inner home-section__inner--about">
               <h2 className="home-section__title">A little about me</h2>
@@ -142,17 +142,6 @@ export default function HomeSections() {
           {activeTab === 'books' && (
             <div className="home-section__inner">
               <h2 className="home-section__title">Books I am reading</h2>
-              <p>
-                I collaborate with researchers throughout the development of their projects,
-                providing technical input and helping address challenges that arise along the
-                way. This includes investigating data inconsistencies, improving data workflows,
-                evaluating technical approaches, refactoring research code, and making solutions
-                more robust and maintainable. I participate in the papers revision prior to
-                submission, providing feedback on technical aspects, methodology implementation,
-                and the clarity of how the work is presented. I ultimately lead the deployment of
-                resulting solutions from experimental environments into production, making them
-                available for practical use by teams in the industry.
-              </p>
               <p className="home-section__subtitle">
                 Reading multiple books at once (and sometimes refusing to finish them because they
                 are too good!)
@@ -200,6 +189,17 @@ export default function HomeSections() {
           {activeTab === 'papers' && (
             <div className="home-section__inner">
               <h2 className="home-section__title">Selected papers (in collaboration)</h2>
+              <p>
+                I collaborate with researchers throughout the development of their projects,
+                providing technical input and helping address challenges that arise along the
+                way. This includes investigating data inconsistencies, improving data workflows,
+                evaluating technical approaches, refactoring research code, and making solutions
+                more robust and maintainable. I participate in the papers revision prior to
+                submission, providing feedback on technical aspects, methodology implementation,
+                and the clarity of how the work is presented. I ultimately lead the deployment of
+                resulting solutions from experimental environments into production, making them
+                available for practical use by teams in the industry.
+              </p>
               <ul className="home-papers">
                 {SELECTED_PAPERS.map((paper) => (
                   <li key={paper.title} className="home-papers__item">
