@@ -17,6 +17,7 @@ import diplomaSprite from '../assets/characters/grad-diploma.png'
 import passportSprite from '../assets/characters/passport.png'
 import townBackground from '../assets/town-profile.jpg'
 import HomeSections from '../sections/HomeSections'
+import TypewriterText from './TypewriterText'
 import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, type Building } from './buildings'
 import {
   doorPoint,
@@ -247,6 +248,11 @@ const GREETINGS: { text: string; font: string }[] = [
   { text: '欢迎', font: "'STKaiti', 'KaiTi', serif" },
 ]
 const CELEBRATION_DURATION_MS = 2600
+
+// How long a building's checkmark waits before appearing after it becomes
+// permanently done, so the player doesn't see it pop in right in front of
+// them -- it'll be there next time they look.
+const CHECKMARK_REVEAL_DELAY_MS = 6000
 interface CelebrationParticle {
   emoji: string
   left: number
@@ -363,6 +369,7 @@ export default function TownMap() {
   const [airportLoopAvailable, setAirportLoopAvailable] = useState(false)
   const [loveAvailable, setLoveAvailable] = useState(false)
   const [loopAllVisited, setLoopAllVisited] = useState(false)
+  const [checkmarkReady, setCheckmarkReady] = useState<Set<string>>(new Set())
   const [explorationStat, setExplorationStat] = useState(
     TOTAL_STOPS > 0 ? Math.round((visited.size / TOTAL_STOPS) * 100) : 0,
   )
@@ -429,6 +436,7 @@ export default function TownMap() {
   const companionsSpawnedRef = useRef(false)
   const divorceDoneRef = useRef(false)
   const celebrationTimeoutRef = useRef<number | null>(null)
+  const checkmarkTimeoutsRef = useRef<Record<string, number>>({})
   playerRef.current = player
   himVisibleRef.current = himVisible
   isEscortingRef.current = isEscorting
@@ -848,10 +856,13 @@ export default function TownMap() {
 
       // Job icon pickups, one each in front of TJSP, Elite School and Kenlo
       // Software, only available once the graduation hat has been collected.
+      // They're offered one at a time: the next job only shows up once the
+      // money from the previous one has been collected at the bank.
       if (!modalBuilding && !isEscortingRef.current && !playerHiddenRef.current && hatCollectedRef.current) {
-        const current = playerRef.current
-        for (const id of JOB_BUILDING_IDS) {
-          if (collectedJobsRef.current.has(id)) continue
+        const nextJobIndex = collectedJobsRef.current.size
+        if (nextJobIndex < JOB_BUILDING_IDS.length && (nextJobIndex === 0 || moneyCollectCountRef.current >= nextJobIndex)) {
+          const id = JOB_BUILDING_IDS[nextJobIndex]
+          const current = playerRef.current
           const door = JOB_DOORS[id]
           const dist = Math.hypot(current.x - door.x, current.y - door.y)
           if (dwellReady(`job-${id}`, dist < CATCH_RADIUS, dt)) {
@@ -860,7 +871,6 @@ export default function TownMap() {
             collectedJobsRef.current = next
             setCollectedJobs(next)
             triggerCelebration(JOB_EMOJIS, door)
-            break
           }
         }
       }
@@ -1267,6 +1277,39 @@ export default function TownMap() {
     }
   }
 
+  // Schedules each building's checkmark to appear a little while after it
+  // becomes permanently done, instead of popping in immediately -- so the
+  // player only notices it next time they glance back at that building.
+  useEffect(() => {
+    for (const building of BUILDINGS) {
+      const id = building.id
+      if (
+        isPermanentlyDone(id) &&
+        !checkmarkReady.has(id) &&
+        checkmarkTimeoutsRef.current[id] === undefined
+      ) {
+        checkmarkTimeoutsRef.current[id] = window.setTimeout(() => {
+          delete checkmarkTimeoutsRef.current[id]
+          setCheckmarkReady((prev) => {
+            const next = new Set(prev)
+            next.add(id)
+            return next
+          })
+        }, CHECKMARK_REVEAL_DELAY_MS)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectedJobs, divorceDone, hasCar, visited])
+
+  useEffect(() => {
+    return () => {
+      for (const timeoutId of Object.values(checkmarkTimeoutsRef.current)) {
+        window.clearTimeout(timeoutId)
+      }
+      checkmarkTimeoutsRef.current = {}
+    }
+  }, [])
+
   return (
     <div className="town">
       <header className="town-header">
@@ -1277,7 +1320,9 @@ export default function TownMap() {
         ))}
       </header>
       <div className="town-black-band">
-        <p className="town-tagline">Feel free to play.</p>
+        <p className="town-tagline">
+          <TypewriterText text="Feel free to play." />
+        </p>
         <div className="town-map-wrap">
         <img src={townBackground} alt="" className="town-map-wrap__background" />
 
@@ -1346,7 +1391,7 @@ export default function TownMap() {
                 className={nearBuilding?.id === building.id ? 'building building--near' : 'building'}
               >
                 <circle cx={door.x} cy={door.y} r={10} className="building__door-marker" />
-                {isPermanentlyDone(building.id) && (
+                {checkmarkReady.has(building.id) && (
                   <text x={door.x} y={door.y - 16} textAnchor="middle" className="building__visited-check">
                     ✓
                   </text>
@@ -1378,14 +1423,21 @@ export default function TownMap() {
           )}
 
           {hatCollected &&
-            JOB_BUILDING_IDS.filter((id) => !collectedJobs.has(id)).map((id) => {
+            (() => {
+              // Jobs are offered one at a time: the next job in the sequence
+              // only shows up once the money from the previous one has been
+              // collected at the bank.
+              const nextJobIndex = collectedJobs.size
+              if (nextJobIndex >= JOB_BUILDING_IDS.length) return null
+              if (nextJobIndex > 0 && moneyCollectCount < nextJobIndex) return null
+              const id = JOB_BUILDING_IDS[nextJobIndex]
               const door = JOB_DOORS[id]
               return (
                 <text key={id} x={door.x} y={door.y - 6} textAnchor="middle" className="town-pickup-emoji">
                   👩‍💻
                 </text>
               )
-            })}
+            })()}
 
           {collectedJobs.size > moneyCollectCount && (
             <text x={BANK_DOOR.x} y={BANK_DOOR.y - 6} textAnchor="middle" className="town-pickup-emoji">
@@ -1531,7 +1583,9 @@ export default function TownMap() {
       </div>
 
       {loopAllVisited && (
-        <p className="town-tagline town-tagline--end">Thanks for playing!</p>
+        <p className="town-tagline town-tagline--end">
+          <TypewriterText text="You've reached the current year of this adventure. Thank for playing! More details below." />
+        </p>
       )}
       </div>
 

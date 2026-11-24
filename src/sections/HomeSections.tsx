@@ -189,7 +189,7 @@ export default function HomeSections() {
           {activeTab === 'papers' && (
             <div className="home-section__inner">
               <h2 className="home-section__title">Selected papers (in collaboration)</h2>
-              <p>
+              <p className="home-papers__intro">
                 I collaborate with researchers throughout the development of their projects,
                 providing technical input and helping address challenges that arise along the
                 way. This includes investigating data inconsistencies, improving data workflows,

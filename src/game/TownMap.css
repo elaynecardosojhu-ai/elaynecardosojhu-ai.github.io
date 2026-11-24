@@ -41,6 +41,28 @@
   padding-top: 20px;
 }
 
+.typewriter-text {
+  font-family: 'Courier New', Consolas, monospace;
+  letter-spacing: 0.02em;
+}
+
+.typewriter-text__cursor {
+  display: inline-block;
+  margin-left: 1px;
+  animation: typewriter-blink 0.8s steps(1) infinite;
+}
+
+@keyframes typewriter-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
 .town-black-band {
   width: 100vw;
   margin-left: calc(50% - 50vw);
