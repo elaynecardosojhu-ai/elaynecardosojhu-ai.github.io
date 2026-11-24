@@ -1591,7 +1591,10 @@ export default function TownMap() {
 
       {loopAllVisited && (
         <p className="town-tagline town-tagline--end">
-          <TypewriterText text="You've reached the current year of this adventure. Thank for playing! More details below." />
+          <TypewriterText
+            text="You've reached the current year of this adventure. Thank for playing! More details below."
+            speedMs={70}
+          />
         </p>
       )}
       </div>

@@ -5,12 +5,13 @@ const TYPE_SPEED_MS = 35
 interface TypewriterTextProps {
   text: string
   className?: string
+  speedMs?: number
 }
 
 // Types out `text` one letter at a time in a monospace "terminal" font, with
 // a blinking cursor that disappears once the full sentence has been typed.
 // Re-types from scratch whenever `text` changes.
-export default function TypewriterText({ text, className }: TypewriterTextProps) {
+export default function TypewriterText({ text, className, speedMs = TYPE_SPEED_MS }: TypewriterTextProps) {
   const [shown, setShown] = useState('')
   const [done, setDone] = useState(false)
   const intervalRef = useRef<number | null>(null)
@@ -27,11 +28,11 @@ export default function TypewriterText({ text, className }: TypewriterTextProps)
         if (intervalRef.current !== null) window.clearInterval(intervalRef.current)
         setDone(true)
       }
-    }, TYPE_SPEED_MS)
+    }, speedMs)
     return () => {
       if (intervalRef.current !== null) window.clearInterval(intervalRef.current)
     }
-  }, [text])
+  }, [text, speedMs])
 
   return (
     <span className={`typewriter-text${className ? ` ${className}` : ''}`}>
