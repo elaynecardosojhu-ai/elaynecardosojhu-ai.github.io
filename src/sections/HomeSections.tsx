@@ -8,16 +8,23 @@ const DEFAULT_SIDEBAR_WIDTH = 400
 const MIN_SIDEBAR_WIDTH = 260
 const MAX_SIDEBAR_WIDTH = 560
 
-// Homepage sections shown below the game: a sticky left sidebar (photo +
-// contact info, one flat elegant color, resizable by dragging its right
-// edge) next to a scrolling right column of content panels, each a
-// full-bleed panel in its own flat color from a same-tone complementary
-// palette (sharp edges, no gradient). Sections use position: sticky so that
-// as you scroll, each new section slides up and over the previous one -- a
-// stacked-card effect. Edit the JSX below for About copy, and
+type TabId = 'about' | 'books' | 'papers'
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'about', label: 'About me' },
+  { id: 'books', label: 'Books I am reading' },
+  { id: 'papers', label: 'Selected papers' },
+]
+
+// Homepage shown below the game: a sticky left sidebar (photo, name/title,
+// contact info, resizable by dragging its right edge) next to a session
+// area on the right. The session area has a top nav bar linking to About
+// me / Books / Papers -- clicking a link swaps the content shown below it,
+// instead of scrolling. Edit the JSX below for About copy, and
 // src/data/books.ts / src/data/papers.ts for the reading list and papers.
 export default function HomeSections() {
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH)
+  const [activeTab, setActiveTab] = useState<TabId>('about')
   const draggingRef = useRef(false)
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
@@ -40,6 +47,8 @@ export default function HomeSections() {
     <div className="home-layout">
       <aside className="home-sidebar" style={{ width: sidebarWidth }}>
         <img className="home-sidebar__photo" src={profilePic} alt="Elayne" />
+        <h1 className="home-sidebar__name">Elayne Cardoso de Morais, M.A.</h1>
+        <p className="home-sidebar__role">Research Software Engineer | Sociologist</p>
         <ul className="home-contact__links">
           <li>
             <svg className="home-contact__icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -94,98 +103,111 @@ export default function HomeSections() {
       </aside>
 
       <div className="home-content">
-        <section className="home-section home-section--about" id="about">
-          <div className="home-section__inner">
-            <h1 className="home-section__name">Elayne Cardoso de Morais, M.A.</h1>
-            <p className="home-section__role">Research Software Engineer | Sociologist</p>
-            <h2 className="home-section__title">A little about me</h2>
-            <p>
-              I'm a computer scientist, sociologist, researcher, and teacher, fascinated by how
-              people perceive the world around them and how media, social media, and emerging
-              technologies like AI shape the way we think, interact, and understand society.
-            </p>
-            <p>
-              Over the years, I've worked primarily in academic environments, moving between
-              computer science, the social sciences, and education. Today, I work at the
-              intersection of software engineering and artificial intelligence, helping bring
-              solutions developed in research environments into production in industry.
-            </p>
-            <p>
-              When I'm not working, I'm usually being a pet mom to two dogs and a cat, swimming,
-              reading a book, or exploring the worlds of Assassin's Creed (huge fan). I'm always
-              looking for something new to learn, build, or explore.
-            </p>
-          </div>
-        </section>
+        <nav className="home-tabs">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`home-tabs__link${activeTab === tab.id ? ' home-tabs__link--active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
 
-        <section className="home-section home-section--books" id="books">
-          <div className="home-section__inner">
-            <h2 className="home-section__title">Books I am reading</h2>
-            <p className="home-section__subtitle">
-              Reading multiple books at once (and sometimes refusing to finish them because they
-              are too good!)
-            </p>
-            <ul className="home-books">
-              {CURRENT_BOOKS.map((book) => (
-                <li key={book.title} className="home-books__item">
-                  {(book.coverId || book.coverUrl) && (
-                    <a
-                      className="home-books__cover-link"
-                      href={book.url ?? `https://books.google.com/books?id=${book.coverId}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <img
-                        className="home-books__cover"
-                        src={
-                          book.coverUrl ??
-                          `https://books.google.com/books/content?id=${book.coverId}&printsec=frontcover&img=1&zoom=1&source=gbs_api`
-                        }
-                        alt={`Cover of ${book.title}`}
-                        loading="lazy"
-                      />
-                    </a>
-                  )}
-                  <div className="home-books__info">
-                    <p className="home-books__title">
-                      {book.url ? (
-                        <a href={book.url} target="_blank" rel="noreferrer">
-                          {book.title}
+        <section className="home-session">
+          {activeTab === 'about' && (
+            <div className="home-section__inner">
+              <h2 className="home-section__title">A little about me</h2>
+              <p>
+                I'm a computer scientist, sociologist, researcher, and teacher, fascinated by how
+                people perceive the world around them and how media, social media, and emerging
+                technologies like AI shape the way we think, interact, and understand society.
+              </p>
+              <p>
+                Over the years, I've worked primarily in academic environments, moving between
+                computer science, the social sciences, and education. Today, I work at the
+                intersection of software engineering and artificial intelligence, helping bring
+                solutions developed in research environments into production in industry.
+              </p>
+              <p>
+                When I'm not working, I'm usually being a pet mom to two dogs and a cat, swimming,
+                reading a book, or exploring the worlds of Assassin's Creed (huge fan). I'm always
+                looking for something new to learn, build, or explore.
+              </p>
+            </div>
+          )}
+
+          {activeTab === 'books' && (
+            <div className="home-section__inner">
+              <h2 className="home-section__title">Books I am reading</h2>
+              <p className="home-section__subtitle">
+                Reading multiple books at once (and sometimes refusing to finish them because they
+                are too good!)
+              </p>
+              <ul className="home-books">
+                {CURRENT_BOOKS.map((book) => (
+                  <li key={book.title} className="home-books__item">
+                    {(book.coverId || book.coverUrl) && (
+                      <a
+                        className="home-books__cover-link"
+                        href={book.url ?? `https://books.google.com/books?id=${book.coverId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <img
+                          className="home-books__cover"
+                          src={
+                            book.coverUrl ??
+                            `https://books.google.com/books/content?id=${book.coverId}&printsec=frontcover&img=1&zoom=1&source=gbs_api`
+                          }
+                          alt={`Cover of ${book.title}`}
+                          loading="lazy"
+                        />
+                      </a>
+                    )}
+                    <div className="home-books__info">
+                      <p className="home-books__title">
+                        {book.url ? (
+                          <a href={book.url} target="_blank" rel="noreferrer">
+                            {book.title}
+                          </a>
+                        ) : (
+                          book.title
+                        )}
+                      </p>
+                      <span className="home-books__author">{book.author}</span>
+                      {book.note && <p className="home-books__note">{book.note}</p>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {activeTab === 'papers' && (
+            <div className="home-section__inner">
+              <h2 className="home-section__title">Selected papers (in collaboration)</h2>
+              <ul className="home-papers">
+                {SELECTED_PAPERS.map((paper) => (
+                  <li key={paper.title} className="home-papers__item">
+                    <p className="home-papers__title">
+                      {paper.url ? (
+                        <a href={paper.url} target="_blank" rel="noreferrer">
+                          {paper.title}
                         </a>
                       ) : (
-                        book.title
+                        paper.title
                       )}
                     </p>
-                    <span className="home-books__author">{book.author}</span>
-                    {book.note && <p className="home-books__note">{book.note}</p>}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        <section className="home-section home-section--papers" id="papers">
-          <div className="home-section__inner">
-            <h2 className="home-section__title">Selected papers (in collaboration)</h2>
-            <ul className="home-papers">
-              {SELECTED_PAPERS.map((paper) => (
-                <li key={paper.title} className="home-papers__item">
-                  <p className="home-papers__title">
-                    {paper.url ? (
-                      <a href={paper.url} target="_blank" rel="noreferrer">
-                        {paper.title}
-                      </a>
-                    ) : (
-                      paper.title
-                    )}
-                  </p>
-                  <p className="home-papers__authors">{paper.authors}</p>
-                  {paper.venue && <p className="home-papers__venue">{paper.venue}</p>}
-                </li>
-              ))}
-            </ul>
-          </div>
+                    <p className="home-papers__authors">{paper.authors}</p>
+                    {paper.venue && <p className="home-papers__venue">{paper.venue}</p>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       </div>
     </div>
